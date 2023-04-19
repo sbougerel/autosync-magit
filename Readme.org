@@ -1,0 +1,16 @@
+#+title: auto-git-sync
+Automated git synchronisation with upstream
+
+[[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPLv3-blue.svg]]
+
+* Overview
+
+`auto-git-sync` provides a minor mode to automatically synchronise a local git
+branch with its upstream. It is intended to be used only when an individual
+relies on git as a mean to synchronise versioned content between machines, and
+should not be used in a team environment. A typical use case consists in
+synchronising your personal notes between machines.
+
+* Installation
+
+* Configuration
