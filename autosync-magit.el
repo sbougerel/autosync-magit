@@ -1,4 +1,4 @@
-;;; auto-git-sync.el --- Automated git synchronisation with upstream -*- lexical-binding: t; -*-
+;;; autosync-magit.el --- Automatically synchronize content with upstream via magit -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2023 Sylvain Bougerel
 ;;
@@ -12,7 +12,7 @@
 ;; Package-Requires: ((emacs "24.3"))
 
 ;; Keywords: convenience tools vc git
-;; Homepage: https://github.com/sbougerel/auto-git-sync
+;; Homepage: https://github.com/sbougerel/autosync-magit
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -34,9 +34,10 @@
 ;;; Commentary:
 
 ;;  This package provides a minor mode to automatically synchronise a local git
-;;  branch with its upstream. It is intended to be used only when an individual
-;;  relies on git as a mean to synchronise versioned content between machines,
-;;  and should not be used in a team environment. A typical use case consists in
+;;  repository branch with its upstream. It is intended to be used only when an
+;;  individual relies on git as a trivial to synchronise content between
+;;  machines, and should not be used when control over history of changes is
+;;  desired and especially not for team work. A typical use case consists in
 ;;  synchronising your personal notes between machines.
 
 ;;; Code:
@@ -44,17 +45,17 @@
 (require 'magit-git)
 (require 'magit-process)
 
-(defgroup auto-git-sync nil
+(defgroup autosync-magit nil
   "Automated git synchronisation with upstream."
   :group 'tools
   :group 'vc)
 
-(defcustom auto-git-sync-interval 300
+(defcustom autosync-magit-interval 300
   "Interval between synchronisation attempts, in seconds."
   :type 'integer
-  :group 'auto-git-sync)
+  :group 'autosync-magit)
 
-(defcustom auto-git-sync-dirs nil
+(defcustom autosync-magit-dirs nil
   "Alist of (DIR . MESSAGE) that should be synchronised.
 
 DIR is the top-level directory of the repository to synchronise.
@@ -62,37 +63,43 @@ MESSAGE is the commit message to use when committing changes."
   :type '(alist
           :key-type (directory :tag "Top-level directory")
           :value-type (string :tag "Commit message"))
-  :group 'auto-git-sync)
+  :group 'autosync-magit)
 
-(defun auto-git-sync--sync-cons ()
+(defun autosync-magit--sync-cons ()
   "Return '(top-level-dir . message)' for repositories to synchronise or nil."
   (let ((git-dir (magit-toplevel)))
     (and git-dir
-         (assoc git-dir auto-git-sync-dirs))))
+         (assoc git-dir autosync-magit-dirs))))
 
-(defun auto-git-sync--git-pull ()
+(defun autosync-magit--pull ()
   "Execute `git pull`."
-  (when (auto-git-sync--sync-cons)
-    (run-hooks 'magit-credential-hook)
+  (when (autosync-magit--sync-cons)
     (magit-run-git-async "pull")))
 
-(defun auto-git-sync--git-push ()
+(defun autosync-magit--commit-push ()
   "Execute `git push`."
-  (let ((sync-cons (auto-git-sync--sync-cons)))
+  (let ((sync-cons (autosync-magit--sync-cons)))
+    (message "autosync-magit--git-push: %s" sync-cons)
     (when sync-cons
-      (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
-      (run-hooks 'magit-credential-hook)
-      (magit-run-git-async "push"))))
+      (set-process-sentinel
+       (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
+       (lambda (process _)
+         (when (and (memq (process-status process) '(exit signal))
+                    (zerop (process-exit-status process)))
+           (magit-run-git-async "push")))))))
 
-(define-minor-mode auto-git-sync-mode
-  "Automatically sync buffer with Git repository."
+(define-minor-mode autosync-magit-mode
+  "Automatically sync new buffers with Git repository."
+  :global t
+  :group 'autosync-magit
+  :require 'autosync-magit
   :lighter " ↕"
-  (if auto-git-sync-mode
+  (if autosync-magit-mode
       (progn
-        (add-hook 'after-save-hook #'auto-git-sync--git-push nil t)
-        (add-hook 'find-file-hook #'auto-git-sync--git-pull nil t))
-    (remove-hook 'after-save-hook #'auto-git-sync--git-push t)
-    (remove-hook 'find-file-hook #'auto-git-sync--git-pull t)))
+        (add-hook 'after-save-hook #'autosync-magit--commit-push nil t)
+        (add-hook 'find-file-hook #'autosync-magit--pull nil t))
+    (remove-hook 'after-save-hook #'autosync-magit--commit-push t)
+    (remove-hook 'find-file-hook #'autosync-magit--pull t)))
 
-(provide 'auto-git-sync)
-;;; auto-git-sync.el ends here
+(provide 'autosync-magit)
+;;; autosync-magit.el ends here

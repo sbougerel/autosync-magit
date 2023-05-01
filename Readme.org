@@ -1,15 +1,24 @@
-#+title: auto-git-sync
-Automated git synchronisation with upstream
+#+title: autosync-magit
+Automatically synchronise content with upstream via magit.
 
 [[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPLv3-blue.svg]]
 
 * Overview
 
-`auto-git-sync` provides a minor mode to automatically synchronise a local git
-branch with its upstream. It is intended to be used only when an individual
-relies on git as a mean to synchronise versioned content between machines, and
-should not be used in a team environment. A typical use case consists in
-synchronising your personal notes between machines.
+This package provides a minor mode to automatically synchronise a local git
+repository branch with its upstream. It is intended to be used only when an
+individual relies on git as a trivial to synchronise content between machines,
+and should not be used when control over history of changes is desired and
+especially not for team work. A typical use case consists in synchronising your
+personal notes between machines.
+
+Currently, this package only works with a magit backend.
+
+Whenever a file within an automatically synchronised repository loads in a
+buffer, `autosync-magit` pulls the latest changes from the tracked upstream
+remote asynchronously via magit. Conversely, when the file is saved,
+`autosync-magit` creates commit with all unstaged & staged changes, then pushes
+the commit to the tracked upstream remote.
 
 * Installation
 
