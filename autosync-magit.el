@@ -71,15 +71,18 @@ MESSAGE is the commit message to use when committing changes."
     (and git-dir
          (assoc git-dir autosync-magit-dirs))))
 
-(defun autosync-magit--pull ()
-  "Execute `git pull`."
+;;;###autoload
+(defun autosync-magit-pull ()
+  "Execute `git pull --rebase`."
+  (interactive)
   (when (autosync-magit--sync-cons)
-    (magit-run-git-async "pull")))
+    (magit-run-git-async "pull" "--rebase")))
 
-(defun autosync-magit--commit-push ()
-  "Execute `git push`."
+;;;###autoload
+(defun autosync-magit-push ()
+  "Execute `git commit` then `git push`."
+  (interactive)
   (let ((sync-cons (autosync-magit--sync-cons)))
-    (message "autosync-magit--git-push: %s" sync-cons)
     (when sync-cons
       (set-process-sentinel
        (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
@@ -90,17 +93,29 @@ MESSAGE is the commit message to use when committing changes."
 
 ;;;###autoload
 (define-minor-mode autosync-magit-mode
-  "Automatically sync new buffers with Git repository."
-  :global t
-  :require 'autosync-magit
-  :group 'autosync-magit
+  "Autosync-Magit mode."
+  :init-value nil
+  :global nil
   :lighter " ↕"
+  :group 'autosync-magit
   (if autosync-magit-mode
-      (progn
-        (add-hook 'after-save-hook #'autosync-magit--commit-push nil t)
-        (add-hook 'find-file-hook #'autosync-magit--pull nil t))
-    (remove-hook 'after-save-hook #'autosync-magit--commit-push t)
-    (remove-hook 'find-file-hook #'autosync-magit--pull t)))
+      (if (autosync-magit--sync-cons)
+          (progn
+            (add-hook 'after-save-hook #'autosync-magit-push nil t)
+            (add-hook 'find-file-hook #'autosync-magit-pull nil t))
+        (autosync-magit-mode -1))
+    (remove-hook 'after-save-hook #'autosync-magit-push t)
+    (remove-hook 'find-file-hook #'autosync-magit-pull t)))
+
+(defun autosync-magit--turn-on ()
+  "Turn on `autosync-magit-mode' globally."
+  (when (buffer-file-name)
+    (autosync-magit-mode +1)))
+
+;;;###autoload
+(define-global-minor-mode global-autosync-magit-mode autosync-magit-mode
+  autosync-magit--turn-on
+  :group 'autosync-magit)
 
 (provide 'autosync-magit)
 ;;; autosync-magit.el ends here

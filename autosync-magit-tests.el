@@ -51,4 +51,4 @@
 
 (ert-deftest autosync-magit-mode--required-test ()
   "Test that autosync-magit-mode is autoloaded."
-  (memq 'autosync-magit-mode global-minor-modes))
+  (memq 'global-autosync-magit-mode global-minor-modes))
