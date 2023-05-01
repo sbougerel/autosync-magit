@@ -88,11 +88,12 @@ MESSAGE is the commit message to use when committing changes."
                     (zerop (process-exit-status process)))
            (magit-run-git-async "push")))))))
 
+;;;###autoload
 (define-minor-mode autosync-magit-mode
   "Automatically sync new buffers with Git repository."
   :global t
-  :group 'autosync-magit
   :require 'autosync-magit
+  :group 'autosync-magit
   :lighter " ↕"
   (if autosync-magit-mode
       (progn
