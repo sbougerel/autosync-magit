@@ -6,43 +6,40 @@ RM = rm -f
 EMACS = emacs
 BYTEC = autosync-magit.elc
 
-REQS = dash \
-	with-editor \
-	magit-section \
-	magit
+# Should pull the following dependencies:
+#   dash
+#   with-editor
+#   magit-section
+REQS := magit
 
-REQ_DASH_VERSION=2.19.1
-REQ_WITH_EDITOR_VERSION=3.2.0
-REQ_MAGIT_SECTION_VERSION=3.3.0
-REQ_MAGIT_VERSION=3.3.0
+PKGCACHE := $(abspath $(PWD)/package-cache)
 
-PKGS = dash-$(REQ_DASH_VERSION)
-PKGS += with-editor-$(REQ_WITH_EDITOR_VERSION)
-PKGS += magit-section-$(REQ_MAGIT_SECTION_VERSION)
-PKGS += magit-$(REQ_MAGIT_VERSION)
+# INIT_PACKAGE_EL from package-lint (https://github.com/purcell/package-lint)
+# Copyrights: Steve Purcell (https://github.com/purcell)
+INIT_PACKAGE_EL := "(progn \
+  (require 'package) \
+  (setq package-user-dir \"$(PKGCACHE)\") \
+  (setq package-archives \
+	'((\"gnu\" . \"https://elpa.gnu.org/packages/\") \
+	  (\"nongnu\" . \"https://elpa.nongnu.org/nongnu/\"))) \
+  (package-initialize) \
+  (unless package-archive-contents \
+     (package-refresh-contents)) \
+  (dolist (pkg '($(REQS))) \
+    (unless (package-installed-p pkg) \
+      (package-install pkg))))"
 
-PKGCACHE = $(abspath $(PWD)/package-cache)
-PKGDIRS := $(addprefix $(PKGCACHE)/,$(PKGS))
-LOADPATH = $(addprefix -L ,$(PKGDIRS))
+BATCH = $(EMACS) -Q --batch --eval $(INIT_PACKAGE_EL)
 
 all: compile
 
-compile: $(PKGDIRS) $(BYTEC)
+compile: $(BYTEC)
 
-$(PKGDIRS):
-	@echo "Installing dependencies: $(REQS)"
-	mkdir -p $(PKGCACHE)
-	$(EMACS) -Q --batch --eval "(progn (setq package-user-dir \"$(PKGCACHE)\") (package-initialize) (package-refresh-contents) (mapc 'package-install '($(REQS))))"
-	@for pkg in $<; do \
-		[ -d $pkg ] || (echo "Failed to install $pkg, version changed?" && exit 1) \
-	done
-
-test: $(PKGDIRS)
-	$(EMACS) --version
-	$(EMACS) -Q --batch \
-		$(LOADPATH) \
+test:
+	$(BATCH) \
 		-L . \
-		-l autosync-magit-tests.el -f ert-run-tests-batch-and-exit
+		-l autosync-magit-tests.el \
+		-f ert-run-tests-batch-and-exit
 
 purge: clean
 	$(RM) -r $(PKGCACHE)
@@ -52,7 +49,6 @@ clean:
 
 .el.elc:
 	@echo "Compiling $<"
-	@$(EMACS) -Q --batch \
-		$(LOADPATH) \
+	@$(BATCH) \
 		-L . \
 		-f batch-byte-compile $<

@@ -16,8 +16,11 @@ jobs:
           - 28.1
           - snapshot
     steps:
-    - uses: actions/checkout@v3
-    - uses: purcell/setup-emacs@master
-      with:
-        version: ${{ matrix.emacs_version }}
-    - run: make test
+      - uses: actions/checkout@v3
+      - uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs_version }}
+      - run: make test
+      - uses: leotaku/elisp-check@master
+        with:
+          file: autosync-magit.el
