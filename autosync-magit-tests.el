@@ -35,7 +35,7 @@
 
 (ert-deftest autosync-magit--sync-cons-test ()
   "Test autosync-magit--sync-cons function."
-  (let* ((repo (magit-toplevel))
+  (let* ((repo (expand-file-name command-line-default-directory))
          (autosync-magit-dirs (list
                               (cons repo "commit message 1")
                               (cons repo "commit message 2"))))
@@ -49,6 +49,6 @@
     (should (equal (autosync-magit--sync-cons) nil)))
   )
 
-(ert-deftest autosync-magit-mode--required-test ()
-  "Test that autosync-magit-mode is autoloaded."
+(ert-deftest autosync-magit-mode--global-features ()
+  "Test that global-autosync-magit-mode is found in features."
   (memq 'global-autosync-magit-mode global-minor-modes))

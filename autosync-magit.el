@@ -42,9 +42,7 @@
 
 ;;; Code:
 
-(require 'magit-git)
-(require 'magit-process)
-
+;; Definitions:
 (defgroup autosync-magit nil
   "Automated git synchronisation with upstream."
   :group 'tools
@@ -65,6 +63,15 @@ MESSAGE is the commit message to use when committing changes."
           :value-type (string :tag "Commit message"))
   :group 'autosync-magit)
 
+;; Lazily loaded functions:
+(autoload 'magit-toplevel "magit-process" nil t)
+(autoload 'magit-run-git-async "magit-process" nil t)
+
+;; Check-declare lazy-loaded functions:
+(declare-function magit-toplevel "magit-git" (&optional directory))
+(declare-function magit-run-git-async "magit-process" (&rest args))
+
+;; Implementation:
 (defun autosync-magit--sync-cons ()
   "Return '(top-level-dir . message)' for repositories to synchronise or nil."
   (let ((git-dir (magit-toplevel)))
@@ -76,7 +83,7 @@ MESSAGE is the commit message to use when committing changes."
   "Execute `git pull --rebase`."
   (interactive)
   (when (autosync-magit--sync-cons)
-    (magit-run-git-async "pull" "--rebase")))
+        (magit-run-git-async "pull")))
 
 ;;;###autoload
 (defun autosync-magit-push ()
