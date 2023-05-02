@@ -34,10 +34,10 @@
 ;;; Commentary:
 
 ;;  This package provides a minor mode to automatically synchronise a local git
-;;  repository branch with its upstream. It is intended to be used only when an
+;;  repository branch with its upstream.  It is intended to be used only when an
 ;;  individual relies on git as a trivial to synchronise content between
 ;;  machines, and should not be used when control over history of changes is
-;;  desired and especially not for team work. A typical use case consists in
+;;  desired and especially not for team work.  A typical use case consists in
 ;;  synchronising your personal notes between machines.
 
 ;;; Code:

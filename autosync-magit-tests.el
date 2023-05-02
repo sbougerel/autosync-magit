@@ -49,6 +49,4 @@
     (should (equal (autosync-magit--sync-cons) nil)))
   )
 
-(ert-deftest autosync-magit-mode--global-features ()
-  "Test that global-autosync-magit-mode is found in features."
-  (memq 'global-autosync-magit-mode global-minor-modes))
+;; TODO add test for remaining functions
