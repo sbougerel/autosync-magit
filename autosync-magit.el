@@ -63,33 +63,31 @@ MESSAGE is the commit message to use when committing changes."
           :value-type (string :tag "Commit message"))
   :group 'autosync-magit)
 
-;; Lazily loaded functions:
-(autoload 'magit-toplevel "magit-process" nil t)
-(autoload 'magit-run-git-async "magit-process" nil t)
-
 ;; Check-declare lazy-loaded functions:
 (declare-function magit-toplevel "magit-git" (&optional directory))
 (declare-function magit-run-git-async "magit-process" (&rest args))
 
 ;; Implementation:
-(defun autosync-magit--sync-cons ()
+(defun autosync-magit--req-sync ()
   "Return '(top-level-dir . message)' for repositories to synchronise or nil."
-  (let ((git-dir (magit-toplevel)))
-    (and git-dir
-         (assoc git-dir autosync-magit-dirs))))
+  (require 'magit-process nil t)
+  (when (featurep 'magit-git)
+    (let ((git-dir (magit-toplevel)))
+      (and git-dir
+           (assoc git-dir autosync-magit-dirs)))))
 
 ;;;###autoload
 (defun autosync-magit-pull ()
-  "Execute `git pull --rebase`."
+  "Execute `git pull`."
   (interactive)
-  (when (autosync-magit--sync-cons)
+  (when (autosync-magit--req-sync)
         (magit-run-git-async "pull")))
 
 ;;;###autoload
 (defun autosync-magit-push ()
   "Execute `git commit` then `git push`."
   (interactive)
-  (let ((sync-cons (autosync-magit--sync-cons)))
+  (let ((sync-cons (autosync-magit--req-sync)))
     (when sync-cons
       (set-process-sentinel
        (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
@@ -106,7 +104,7 @@ MESSAGE is the commit message to use when committing changes."
   :lighter " ↕"
   :group 'autosync-magit
   (if autosync-magit-mode
-      (if (autosync-magit--sync-cons)
+      (if (autosync-magit--req-sync)
           (progn
             (add-hook 'after-save-hook #'autosync-magit-push nil t)
             (add-hook 'find-file-hook #'autosync-magit-pull nil t))
