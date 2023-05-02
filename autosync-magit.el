@@ -108,7 +108,7 @@ MESSAGE is the commit message to use when committing changes."
     (remove-hook 'find-file-hook #'autosync-magit-pull t)))
 
 (defun autosync-magit--turn-on ()
-  "Turn on `autosync-magit-mode' globally."
+  "Turn on `autosync-magit-mode'."
   (when (buffer-file-name)
     (autosync-magit-mode +1)))
 
