@@ -8,10 +8,12 @@ Automatically synchronise content with upstream via magit.
 
 This package provides a minor mode to automatically synchronise a local git
 repository branch with its upstream. It is intended to be used only when an
-individual relies on git as a trivial to synchronise content between machines,
-and should not be used when control over history of changes is desired and
-especially not for team work. A typical use case consists in synchronising your
-personal notes between machines.
+individual relies on git as a mean to synchronise content privately between
+machines, and should not be used when control over commits is desired and
+especially not for team work.
+
+A typical use case consists in synchronising your personal notes between
+ machines.
 
 Currently, this package only works with a magit backend.
 

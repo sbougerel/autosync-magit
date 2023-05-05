@@ -34,11 +34,13 @@
 ;;; Commentary:
 
 ;;  This package provides a minor mode to automatically synchronise a local git
-;;  repository branch with its upstream.  It is intended to be used only when an
-;;  individual relies on git as a trivial to synchronise content between
-;;  machines, and should not be used when control over history of changes is
-;;  desired and especially not for team work.  A typical use case consists in
-;;  synchronising your personal notes between machines.
+;;  repository branch with its upstream. It is intended to be used only when an
+;;  individual relies on git as a mean to synchronise content privately between
+;;  machines, and should not be used when control over commits is desired and
+;;  especially not for team work.
+;;
+;;  A typical use case consists in synchronising your personal notes between
+;;  machines.
 
 ;;; Code:
 
@@ -65,12 +67,34 @@ MESSAGE is the commit message to use when committing changes."
 
 ;; Check-declare lazy-loaded functions:
 (declare-function magit-toplevel "magit-git" (&optional directory))
+(declare-function magit-rev-eq "magit-git" (a b))
+(declare-function magit-rev-ancestor-p "magit-git" (a b))
 (declare-function magit-run-git-async "magit-process" (&rest args))
 
 ;; Implementation:
+(defmacro autosync-magit--when-idle (&rest body)
+  "Run `BODY' when Emacs is idle."
+  (declare (indent 0) (debug t))
+  `(run-with-idle-timer 0 nil (lambda () ,@body)))
+
+(defmacro autosync-magit--if (process &rest body)
+  "Run `BODY' if async `PROCESS' is successful."
+  (declare (indent 1) (debug t))
+  `(set-process-sentinel
+    ,process
+    (lambda (val _)
+      (when (and (memq (process-status val) '(exit signal))
+                 (zerop (process-exit-status val)))
+        ,@body))))
+
+(defmacro autosync-magit--after (process &rest body)
+  "Run `BODY' after async `PROCESS'."
+  (declare (indent 1) (debug t))
+  `(set-process-sentinel ,process (lambda (_ _) ,@body)))
+
 (defun autosync-magit--req-sync ()
   "Return '(top-level-dir . message)' for repositories to synchronise or nil."
-  (require 'magit-process nil t)
+  (require 'magit-process nil t) ; also loads magit-git
   (when (featurep 'magit-git)
     (let ((git-dir (magit-toplevel)))
       (and git-dir
@@ -78,23 +102,28 @@ MESSAGE is the commit message to use when committing changes."
 
 ;;;###autoload
 (defun autosync-magit-pull ()
-  "Execute `git pull`."
+  "Execute `git fetch` then `git merge'."
   (interactive)
-  (when (autosync-magit--req-sync)
-        (magit-run-git-async "pull")))
+  (autosync-magit--when-idle
+    (when (autosync-magit--req-sync)
+      (autosync-magit--after
+          (magit-run-git-async "fetch")
+        (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
+          (magit-run-git-async "merge"))))))
 
 ;;;###autoload
 (defun autosync-magit-push ()
-  "Execute `git commit` then `git push`."
+  "Execute `git add -A', `git commit -m -a' then `git push'."
   (interactive)
-  (let ((sync-cons (autosync-magit--req-sync)))
-    (when sync-cons
-      (set-process-sentinel
-       (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
-       (lambda (process _)
-         (when (and (memq (process-status process) '(exit signal))
-                    (zerop (process-exit-status process)))
-           (magit-run-git-async "push")))))))
+  (autosync-magit--when-idle
+    (let ((sync-cons (autosync-magit--req-sync)))
+      (when sync-cons
+        (autosync-magit--after
+            (magit-run-git-async "add" "-A")
+          (autosync-magit--after
+              (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
+            (when (not (magit-rev-eq "@{push}" "HEAD"))
+              (magit-run-git-async "push"))))))))
 
 ;;;###autoload
 (define-minor-mode autosync-magit-mode
