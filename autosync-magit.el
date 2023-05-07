@@ -50,8 +50,24 @@
   :group 'tools
   :group 'vc)
 
-(defcustom autosync-magit-interval 300
-  "Interval between synchronisation attempts, in seconds."
+(defcustom autosync-magit-pull-interval 300
+  "Buffer-local minimum interval between pull attempts, in seconds.
+
+When the buffer window is selected (i.e. becomes active),
+`autosync-magit' attempts to pull updates from the remotes. This
+variable ensures this is not done overly frequently."
+  :type 'integer
+  :local t
+  :group 'autosync-magit)
+
+(defcustom autosync-magit-push-debounce 2
+  "Debounce between push attempts, in seconds.
+
+When you save a buffer twice in very quick succession (an
+interval less than `autosync-magit-push-debounce' in seconds),
+only the first push occurs.
+
+It is recommended to set this value to a few seconds only."
   :type 'integer
   :group 'autosync-magit)
 
@@ -64,6 +80,12 @@ MESSAGE is the commit message to use when committing changes."
           :key-type (directory :tag "Top-level directory")
           :value-type (string :tag "Commit message"))
   :group 'autosync-magit)
+
+(defvar-local autosync-magit--last-pull (seconds-to-time 0)
+  "Buffer-local variable storing the epoch of the last pull.")
+
+(defvar-local autosync-magit--last-push (seconds-to-time 0)
+  "Buffer-local variable storing the epoch of the last pull.")
 
 ;; Check-declare lazy-loaded functions:
 (declare-function magit-toplevel "magit-git" (&optional directory))
@@ -93,7 +115,7 @@ MESSAGE is the commit message to use when committing changes."
   `(set-process-sentinel ,process (lambda (_ _) ,@body)))
 
 (defun autosync-magit--req-sync ()
-  "Return '(top-level-dir . message)' for repositories to synchronise or nil."
+  "Return `(TOP-LEVEL-DIR . MESSAGE)' for repositories to synchronise or nil."
   (require 'magit-process nil t) ; also loads magit-git
   (when (featurep 'magit-git)
     (let ((git-dir (magit-toplevel)))
@@ -104,26 +126,44 @@ MESSAGE is the commit message to use when committing changes."
 (defun autosync-magit-pull ()
   "Execute `git fetch` then `git merge'."
   (interactive)
-  (autosync-magit--when-idle
-    (when (autosync-magit--req-sync)
-      (autosync-magit--after
-          (magit-run-git-async "fetch")
-        (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
-          (magit-run-git-async "merge"))))))
+  (when (autosync-magit--req-sync)
+    (autosync-magit--after
+        (magit-run-git-async "fetch")
+      (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
+        ;; Run `merge' and not `rebase' in case of concurrent `commit' + `push'
+        (magit-run-git-async "merge")))))
 
 ;;;###autoload
 (defun autosync-magit-push ()
   "Execute `git add -A', `git commit -m -a' then `git push'."
   (interactive)
-  (autosync-magit--when-idle
-    (let ((sync-cons (autosync-magit--req-sync)))
-      (when sync-cons
+  (let ((sync-cons (autosync-magit--req-sync)))
+    (when sync-cons
+      (autosync-magit--after
+          (magit-run-git-async "add" "-A")
         (autosync-magit--after
-            (magit-run-git-async "add" "-A")
-          (autosync-magit--after
-              (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
-            (when (not (magit-rev-eq "@{push}" "HEAD"))
-              (magit-run-git-async "push"))))))))
+            (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
+          (when (not (magit-rev-eq "@{push}" "HEAD"))
+            (magit-run-git-async "push")))))))
+
+(defun autosync-magit--do-pull (&optional _)
+  "Buffer-local function called upon opening a file or window selection change."
+  (when (and (buffer-file-name) ; don't pull for minibuffer
+             (time-less-p (time-add autosync-magit--last-pull
+                                    (seconds-to-time autosync-magit-pull-interval))
+                          (current-time)))
+    (autosync-magit--when-idle
+      (setq autosync-magit--last-pull (current-time))
+      (autosync-magit-pull))))
+
+(defun autosync-magit--do-push (&optional _)
+  "Buffer-local function called upon saving a buffer."
+  (when (time-less-p (time-add autosync-magit--last-push
+                               (seconds-to-time autosync-magit-push-debounce))
+                     (current-time))
+    (autosync-magit--when-idle
+      (setq autosync-magit--last-push (current-time))
+      (autosync-magit-push))))
 
 ;;;###autoload
 (define-minor-mode autosync-magit-mode
@@ -135,11 +175,15 @@ MESSAGE is the commit message to use when committing changes."
   (if autosync-magit-mode
       (if (autosync-magit--req-sync)
           (progn
-            (add-hook 'after-save-hook #'autosync-magit-push nil t)
-            (add-hook 'find-file-hook #'autosync-magit-pull nil t))
+            (setq autosync-magit--last-pull (seconds-to-time 0))
+            (setq autosync-magit--last-push (seconds-to-time 0))
+            (add-hook 'after-save-hook #'autosync-magit--do-push nil t)
+            (add-hook 'find-file-hook #'autosync-magit--do-pull nil t)
+            (add-hook 'window-selection-change-functions #'autosync-magit--do-pull nil t))
         (autosync-magit-mode -1))
-    (remove-hook 'after-save-hook #'autosync-magit-push t)
-    (remove-hook 'find-file-hook #'autosync-magit-pull t)))
+    (remove-hook 'after-save-hook #'autosync-magit--do-push t)
+    (remove-hook 'find-file-hook #'autosync-magit--do-pull t)
+    (remove-hook 'window-selection-change-functions #'autosync-magit--do-pull t)))
 
 (defun autosync-magit--turn-on ()
   "Turn on `autosync-magit-mode'."
