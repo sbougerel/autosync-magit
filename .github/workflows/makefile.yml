@@ -23,4 +23,5 @@ jobs:
       - run: make test
       - uses: leotaku/elisp-check@master
         with:
+          check: melpa
           file: autosync-magit.el
