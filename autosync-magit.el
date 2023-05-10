@@ -44,6 +44,8 @@
 
 ;;; Code:
 
+(eval-when-compile (require 'cl-lib))
+
 ;; Definitions:
 (defgroup autosync-magit nil
   "Automated git synchronisation with upstream."
@@ -81,11 +83,16 @@ MESSAGE is the commit message to use when committing changes."
           :value-type (string :tag "Commit message"))
   :group 'autosync-magit)
 
-(defvar-local autosync-magit--last-pull (seconds-to-time 0)
-  "Buffer-local variable storing the epoch of the last pull.")
+(cl-defstruct (autosync-magit--sync
+               (:constructor autosync-magit--sync-create)
+               (:copier nil))
+  "A synchronisation object for a directory.
 
-(defvar-local autosync-magit--last-push (seconds-to-time 0)
-  "Buffer-local variable storing the epoch of the last pull.")
+Stores information about the last pull and push operations."
+  last-pull last-push)
+
+(defvar autosync-magit--sync-alist ()
+  "Global alist of `(DIR . OBJ)': sync OBJ for each DIRS.")
 
 ;; Check-declare lazy-loaded functions:
 (declare-function magit-toplevel "magit-git" (&optional directory))
@@ -94,76 +101,90 @@ MESSAGE is the commit message to use when committing changes."
 (declare-function magit-run-git-async "magit-process" (&rest args))
 
 ;; Implementation:
-(defmacro autosync-magit--when-idle (&rest body)
-  "Run `BODY' when Emacs is idle."
-  (declare (indent 0) (debug t))
-  `(run-with-idle-timer 0 nil (lambda () ,@body)))
-
-(defmacro autosync-magit--if (process &rest body)
-  "Run `BODY' if async `PROCESS' is successful."
-  (declare (indent 1) (debug t))
-  `(set-process-sentinel
-    ,process
-    (lambda (val _)
-      (when (and (memq (process-status val) '(exit signal))
-                 (zerop (process-exit-status val)))
-        ,@body))))
-
 (defmacro autosync-magit--after (process &rest body)
   "Run `BODY' after async `PROCESS'."
   (declare (indent 1) (debug t))
   `(set-process-sentinel ,process (lambda (_ _) ,@body)))
 
-(defun autosync-magit--req-sync ()
-  "Return `(TOP-LEVEL-DIR . MESSAGE)' for repositories to synchronise or nil."
+;;;###autoload
+(defun autosync-magit-pull ()
+  "Do `git fetch` then `git merge'."
+  (interactive)
+  (require 'magit-process nil t)
+  (autosync-magit--after
+      (magit-run-git-async "fetch")
+    (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
+      (magit-run-git-async "merge"))))
+
+;;;###autoload
+(defun autosync-magit-push (message)
+  "Do `git add -A', `git commit -m -a MESSAGE' then `git push'."
+  (interactive "sCommit message: ")
+  (require 'magit-process nil t)
+  (autosync-magit--after
+      (magit-run-git-async "add" "-A")
+    (autosync-magit--after
+        (magit-run-git-async "commit" "-a" "-m" message)
+      (when (not (magit-rev-eq "@{push}" "HEAD"))
+        (magit-run-git-async "push")))))
+
+(defmacro autosync-magit--when-idle (&rest body)
+  "Run `BODY' when Emacs is idle."
+  (declare (indent 0) (debug t))
+  `(run-with-idle-timer 0 nil (lambda () ,@body)))
+
+(defun autosync-magit-dirs--assoc ()
+  "Return non-nil when buffer's file belong to a directory to synchronise.
+
+The value returned is an element of `autosync-magit-dirs'."
   (require 'magit-process nil t) ; also loads magit-git
   (when (featurep 'magit-git)
-    (let ((git-dir (magit-toplevel)))
+    (let ((git-dir (magit-toplevel))) ; use buffer's defaults-directory
       (and git-dir
            (assoc git-dir autosync-magit-dirs)))))
 
-;;;###autoload
-(defun autosync-magit-pull ()
-  "Execute `git fetch` then `git merge'."
-  (interactive)
-  (when (autosync-magit--req-sync)
-    (autosync-magit--after
-        (magit-run-git-async "fetch")
-      (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
-        ;; Run `merge' and not `rebase' in case of concurrent `commit' + `push'
-        (magit-run-git-async "merge")))))
-
-;;;###autoload
-(defun autosync-magit-push ()
-  "Execute `git add -A', `git commit -m -a' then `git push'."
-  (interactive)
-  (let ((sync-cons (autosync-magit--req-sync)))
-    (when sync-cons
-      (autosync-magit--after
-          (magit-run-git-async "add" "-A")
-        (autosync-magit--after
-            (magit-run-git-async "commit" "-a" "-m" (cdr sync-cons))
-          (when (not (magit-rev-eq "@{push}" "HEAD"))
-            (magit-run-git-async "push")))))))
-
 (defun autosync-magit--do-pull (&optional _)
   "Buffer-local function called upon opening a file or window selection change."
-  (when (and (buffer-file-name) ; don't pull for minibuffer
-             (time-less-p (time-add autosync-magit--last-pull
-                                    (seconds-to-time autosync-magit-pull-interval))
-                          (current-time)))
-    (autosync-magit--when-idle
-      (setq autosync-magit--last-pull (current-time))
-      (autosync-magit-pull))))
+  (autosync-magit--when-idle
+    (when (buffer-file-name) ; avoid running on *minibuffer* when deselecting, e.g.
+      (let* ((sync-cons (autosync-magit-dirs--assoc))
+             (sync (cdr (assoc (car sync-cons) autosync-magit--sync-alist))))
+        (when (and sync
+                   (time-less-p
+                    (time-add (autosync-magit--sync-last-pull sync)
+                              (seconds-to-time autosync-magit-pull-interval))
+                    (current-time)))
+          (setf (autosync-magit--sync-last-pull sync) (current-time))
+          (autosync-magit-pull))))))
+
+(defun autosync-magit--do-push-bounce (dir message sync)
+  "Bounce pushing `(DIR MESSAGE SYNC)' until debounce time has passed."
+  (let ((old-last-push (autosync-magit--sync-last-push sync)))
+    (setf (autosync-magit--sync-last-push sync) (current-time))
+    (if (time-less-p
+         (time-add old-last-push
+                   (seconds-to-time autosync-magit-push-debounce))
+         (current-time))
+        (autosync-magit-push message)
+      (run-with-timer autosync-magit-push-debounce nil
+                      #'autosync-magit--do-push-bounce
+                      dir message sync))))
 
 (defun autosync-magit--do-push (&optional _)
   "Buffer-local function called upon saving a buffer."
-  (when (time-less-p (time-add autosync-magit--last-push
-                               (seconds-to-time autosync-magit-push-debounce))
-                     (current-time))
-    (autosync-magit--when-idle
-      (setq autosync-magit--last-push (current-time))
-      (autosync-magit-push))))
+  (autosync-magit--when-idle
+    (let* ((sync-cons (autosync-magit-dirs--assoc))
+           (sync (cdr (assoc (car sync-cons) autosync-magit--sync-alist))))
+      (when sync
+        (let ((old-last-push (autosync-magit--sync-last-push sync)))
+          (setf (autosync-magit--sync-last-push sync) (current-time))
+          (if (time-less-p
+               (time-add old-last-push
+                         (seconds-to-time autosync-magit-push-debounce))
+               (current-time))
+              (run-with-timer autosync-magit-push-debounce nil
+                              #'autosync-magit--do-push-bounce
+                              (car sync-cons) (cdr sync-cons) sync)))))))
 
 ;;;###autoload
 (define-minor-mode autosync-magit-mode
@@ -173,14 +194,19 @@ MESSAGE is the commit message to use when committing changes."
   :lighter " ↕"
   :group 'autosync-magit
   (if autosync-magit-mode
-      (if (autosync-magit--req-sync)
-          (progn
-            (setq autosync-magit--last-pull (seconds-to-time 0))
-            (setq autosync-magit--last-push (seconds-to-time 0))
-            (add-hook 'after-save-hook #'autosync-magit--do-push nil t)
-            (add-hook 'find-file-hook #'autosync-magit--do-pull nil t)
-            (add-hook 'window-selection-change-functions #'autosync-magit--do-pull nil t))
-        (autosync-magit-mode -1))
+      (let ((sync-cons (autosync-magit-dirs--assoc)))
+        (if sync-cons
+            (progn
+              (if (not (assoc (car sync-cons) autosync-magit--sync-alist))
+                  (push (cons (car sync-cons)
+                              (autosync-magit--sync-create
+                               :last-pull (seconds-to-time 0)
+                               :last-push (seconds-to-time 0)))
+                        autosync-magit--sync-alist))
+              (add-hook 'after-save-hook #'autosync-magit--do-push nil t)
+              (add-hook 'find-file-hook #'autosync-magit--do-pull nil t)
+              (add-hook 'window-selection-change-functions #'autosync-magit--do-pull nil t))
+          (autosync-magit-mode -1)))
     (remove-hook 'after-save-hook #'autosync-magit--do-push t)
     (remove-hook 'find-file-hook #'autosync-magit--do-pull t)
     (remove-hook 'window-selection-change-functions #'autosync-magit--do-pull t)))
