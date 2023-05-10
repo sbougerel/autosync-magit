@@ -39,14 +39,14 @@
          (autosync-magit-dirs (list
                               (cons repo "commit message 1")
                               (cons repo "commit message 2"))))
-    (should (equal (autosync-magit--req-sync) (cons repo "commit message 1"))))
+    (should (equal (autosync-magit-dirs--assoc) (cons repo "commit message 1"))))
   ;; TODO add test for directory that is not part of a repository
   (let* ((autosync-magit-dirs nil))
-    (should (equal (autosync-magit--req-sync) nil)))
+    (should (equal (autosync-magit-dirs--assoc) nil)))
   (let* ((autosync-magit-dirs ()))
-    (should (equal (autosync-magit--req-sync) nil)))
+    (should (equal (autosync-magit-dirs--assoc) nil)))
   (let* ((autosync-magit-dirs '(("not a directory" . "not a message"))))
-    (should (equal (autosync-magit--req-sync) nil)))
+    (should (equal (autosync-magit-dirs--assoc) nil)))
   )
 
 ;; TODO add test for remaining functions
