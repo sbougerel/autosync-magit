@@ -34,7 +34,7 @@
 ;;; Commentary:
 
 ;;  This package provides a minor mode to automatically synchronise a local git
-;;  repository branch with its upstream. It is intended to be used only when an
+;;  repository branch with its upstream.  It is intended to be used only when an
 ;;  individual relies on git as a mean to synchronise content privately between
 ;;  machines, and should not be used when control over commits is desired and
 ;;  especially not for team work.
@@ -56,7 +56,7 @@
   "Buffer-local minimum interval between pull attempts, in seconds.
 
 When the buffer window is selected (i.e. becomes active),
-`autosync-magit' attempts to pull updates from the remotes. This
+`autosync-magit' attempts to pull updates from the remotes.  This
 variable ensures this is not done overly frequently."
   :type 'integer
   :local t
@@ -104,7 +104,7 @@ Stores information about the last pull and push operations."
 (defmacro autosync-magit--after (process &rest body)
   "Run BODY after async PROCESS."
   (declare (indent 1) (debug t))
-  `(set-process-sentinel ,process (lambda (_ _) ,@body)))
+  `(set-process-sentinel ,process (lambda (&rest _) ,@body)))
 
 ;;;###autoload
 (defun autosync-magit-pull (buffer)
