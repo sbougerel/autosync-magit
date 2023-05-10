@@ -1,46 +1,78 @@
 ;;; autosync-magit.el --- Automatically synchronize content with upstream via magit -*- lexical-binding: t; -*-
-;;
+
 ;; Copyright (C) 2023 Sylvain Bougerel
-;;
 
 ;; Author: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Maintainer: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
-
-;; Created: April 19, 2023
-;; Modified: April 19, 2023
-;; Version: 0.0.1
-;; Package-Requires: ((emacs "24.3"))
-
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: convenience tools vc git
-;; Homepage: https://github.com/sbougerel/autosync-magit
+;; URL: https://github.com/sbougerel/autosync-magit
 
 ;; This file is NOT part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
+;; This program is free software: you can redistribute it and/or modify it under
+;; the terms of the GNU General Public License as published by the Free Software
+;; Foundation, either version 3 of the License, or (at your option) any later
+;; version.
 ;;
-;; This program is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
+;; This program is distributed in the hope that it will be useful, but WITHOUT
+;; ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+;; FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+;; details.
 ;;
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
+;; You should have received a copy of the GNU General Public License along with
+;; this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
-;;  This package provides a minor mode to automatically synchronise a local git
-;;  repository branch with its upstream.  It is intended to be used only when an
-;;  individual relies on git as a mean to synchronise content privately between
-;;  machines, and should not be used when control over commits is desired and
-;;  especially not for team work.
+;; [![License GPLv3](https://img.shields.io/badge/license-GPL_v3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.html)
+;; [![CI Result](https://github.com/sbougerel/autosync-magit/actions/workflows/makefile.yml/badge.svg)](https://github.com/sbougerel/autosync-magit/actions)
 ;;
-;;  A typical use case consists in synchronising your personal notes between
-;;  machines.
+;; This package provides a minor mode to automatically synchronise a local git
+;; repository branch with its upstream.  It is intended to be used
+;; exceptionally: when git is used solely to synchronise private content between
+;; devices.  It should never be used with typical repositories and especially
+;; not for team settings.  A typical use case consists in synchronising your
+;; personal notes between devices.
+
+;;; Installation:
+;;
+;; With `straight.el' and `use-package.el', add this to your `~/.emacs.d/init.el':
+;;
+;; ```elisp
+;; (use-package autosync-magit
+;;  :straight (:host github
+;;             :repo "sbougerel/autosync-magit"
+;;             :files ("*.el"))
+;;  :config
+;;  (setq autosync-magit-dirs
+;;        (list (cons "~/dir/to/sync" "Commit message")))
+;;  (global-autosync-magit-mode 1))
+;;  ```
+;;
+;; And restart Emacs.  If you're using Doom Emacs, add this to your
+;; `~/.doom.d/packages.el':
+;;
+;; ```elisp
+;; (package! autosync-magit
+;;   :recipe (:host github
+;;            :repo "sbougerel/autosync-magit"
+;;            :files ("*.el")))
+;; ```
+;;
+;; Then add the following to `~/.doom.d/config.el':
+;;
+;; ```elisp
+;; (use-package! autosync-magit
+;;  :config
+;;  (setq autosync-magit-dirs
+;;        (list (cons "~/dir/to/sync" "Commit message")))
+;;  (global-autosync-magit-mode 1))
+;; ```
+;;
+;; Then run `doom sync' to install it.
+
 
 ;;; Code:
 
@@ -62,19 +94,19 @@ variable ensures this is not done overly frequently."
   :local t
   :group 'autosync-magit)
 
-(defcustom autosync-magit-push-debounce 2
+(defcustom autosync-magit-push-debounce 5
   "Debounce between push attempts, in seconds.
 
-When you save a buffer twice in very quick succession (an
-interval less than `autosync-magit-push-debounce' in seconds),
-only the first push occurs.
-
-It is recommended to set this value to a few seconds only."
+When you save a buffer, wait for `autosync-magit-push-debounce'
+to elapse before pushing to the remote.  Refreshes the timer if
+you save the buffer again within that interval.  This ensures
+that multiple saves in a short period of time do not result in
+multiple pushes."
   :type 'integer
   :group 'autosync-magit)
 
 (defcustom autosync-magit-dirs nil
-  "Alist of (DIR . MESSAGE) that should be synchronised.
+  "Alist of `(DIR . MESSAGE)' that should be synchronised.
 
 DIR is the top-level directory of the repository to synchronise.
 MESSAGE is the commit message to use when committing changes."
@@ -108,7 +140,7 @@ Stores information about the last pull and push operations."
 
 ;;;###autoload
 (defun autosync-magit-pull (buffer)
-  "Do `git fetch` then `git merge' from BUFFER."
+  "Do `git fetch' then `git merge' from BUFFER."
   (interactive "b")
   (require 'magit-process nil t)
   (autosync-magit--after
@@ -132,7 +164,7 @@ Stores information about the last pull and push operations."
           (magit-run-git-async "push"))))))
 
 (defmacro autosync-magit--when-idle (&rest body)
-  "Run `BODY' when Emacs is idle."
+  "Run BODY when Emacs is idle."
   (declare (indent 0) (debug t))
   `(run-with-idle-timer 0 nil (lambda () ,@body)))
 
@@ -193,7 +225,7 @@ The value returned is an element of `autosync-magit-dirs'."
 
 ;;;###autoload
 (define-minor-mode autosync-magit-mode
-  "Autosync-Magit mode."
+  "Autosync-Magit minor mode."
   :init-value nil
   :global nil
   :lighter " ↕"

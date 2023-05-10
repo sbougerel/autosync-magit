@@ -1,10 +1,12 @@
 .POSIX:
 .PHONY: all compile test clean purge
 .SUFFIXES: .el .elc
+.INTERMEDIATE: make-readme-markdown.el
 
 RM = rm -f
 EMACS = emacs
-BYTEC = autosync-magit.elc
+SRC = autosync-magit.el
+BYTEC = $(SRC)c
 
 # Should pull the following dependencies:
 #   dash
@@ -31,7 +33,7 @@ INIT_PACKAGE_EL := "(progn \
 
 BATCH = $(EMACS) -Q --batch --eval $(INIT_PACKAGE_EL)
 
-all: compile
+all: compile README.md
 
 compile: $(BYTEC)
 
@@ -46,6 +48,12 @@ purge: clean
 
 clean:
 	$(RM) $(BYTEC)
+
+README.md: make-readme-markdown.el $(SRC)
+	$(EMACS) -Q --script $< <$(SRC) >$@
+
+make-readme-markdown.el:
+	curl -L -o $@ https://raw.github.com/mgalgs/make-readme-markdown/master/make-readme-markdown.el
 
 .el.elc:
 	@echo "Compiling $<"
