@@ -95,23 +95,22 @@ variable ensures this is not done overly frequently."
   :group 'autosync-magit)
 
 (defcustom autosync-magit-push-debounce 5
-  "Debounce between push attempts, in seconds.
+  "Duration in seconds that must elapse before push can be called again.
 
 When you save a buffer, wait for `autosync-magit-push-debounce'
-to elapse before pushing to the remote.  Refreshes the timer if
-you save the buffer again within that interval.  This ensures
-that multiple saves in a short period of time do not result in
+to elapse before pushing to the remote (again). This ensures that
+multiple file saves in a short period of time do not result in
 multiple pushes."
   :type 'integer
   :group 'autosync-magit)
 
 (defcustom autosync-magit-dirs nil
-  "Alist of `(DIR . MESSAGE)' that should be synchronised.
+  "Alist of `(REPO_DIR . MESSAGE)' that should be synchronised.
 
-DIR is the top-level directory of the repository to synchronise.
+REPO_DIR is the top-level directory of the repository to synchronise.
 MESSAGE is the commit message to use when committing changes."
   :type '(alist
-          :key-type (directory :tag "Top-level directory")
+          :key-type (directory :tag "Repository top-level directory")
           :value-type (string :tag "Commit message"))
   :group 'autosync-magit)
 
@@ -120,11 +119,11 @@ MESSAGE is the commit message to use when committing changes."
                (:copier nil))
   "A synchronisation object for a directory.
 
-Stores information about the last pull and push operations."
-  last-pull last-push)
+Stores timing about the pull and push operations."
+  last-pull next-push)
 
 (defvar autosync-magit--sync-alist ()
-  "Global alist of `(DIR . OBJ)': sync OBJ for each DIRS.")
+  "Global alist of `(REPO_DIR . OBJ)': sync OBJ for each DIRS.")
 
 ;; Check-declare lazy-loaded functions:
 (declare-function magit-toplevel "magit-git" (&optional directory))
@@ -138,35 +137,43 @@ Stores information about the last pull and push operations."
   (declare (indent 1) (debug t))
   `(set-process-sentinel ,process (lambda (&rest _) ,@body)))
 
+(defmacro autosync-magit--with-repo (repo_dir &rest body)
+  "Run BODY in a temporary buffer where current directory is REPO_DIR."
+  (declare (indent 1) (debug t))
+  `(with-temp-buffer (cd ,repo_dir) ,@body))
+
 ;;;###autoload
-(defun autosync-magit-pull (buffer)
-  "Do `git fetch' then `git merge' from BUFFER."
-  (interactive "b")
+(defun autosync-magit-pull (repo_dir)
+  "Do `git fetch' then `git merge' from REPO_DIR.
+
+This interactive function does not check wether the repository
+belongs to `autosync-magit-dirs'. It is not thorttled either."
+  (interactive "D")
   (require 'magit-process nil t)
   (autosync-magit--after
-      (with-current-buffer buffer (magit-run-git-async "fetch"))
-    (with-current-buffer buffer
+      (autosync-magit--with-repo repo_dir
+        (magit-run-git-async "fetch"))
+    (autosync-magit--with-repo repo_dir
       (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
         (magit-run-git-async "merge")))))
 
 ;;;###autoload
-(defun autosync-magit-push (buffer message)
-  "Do `git add -A', `git commit -m -a MESSAGE' then `git push' from BUFFER."
-  (interactive "b\nMCommit message: ")
+(defun autosync-magit-push (repo_dir message)
+  "Do `git add -A', `git commit -m -a MESSAGE' then `git push' from REPO_DIR.
+
+This interactive function does not check wether the repository
+belongs to `autosync-magit-dirs'. It is not debounced either."
+  (interactive "D\nMCommit message: ")
   (require 'magit-process nil t)
   (autosync-magit--after
-      (with-current-buffer buffer (magit-run-git-async "add" "-A"))
+      (autosync-magit--with-repo repo_dir
+        (magit-run-git-async "add" "-A"))
     (autosync-magit--after
-        (with-current-buffer buffer
+        (autosync-magit--with-repo repo_dir
           (magit-run-git-async "commit" "-a" "-m" message))
-      (with-current-buffer buffer
+      (autosync-magit--with-repo repo_dir
         (when (not (magit-rev-eq "@{push}" "HEAD"))
           (magit-run-git-async "push"))))))
-
-(defmacro autosync-magit--when-idle (&rest body)
-  "Run BODY when Emacs is idle."
-  (declare (indent 0) (debug t))
-  `(run-with-idle-timer 0 nil (lambda () ,@body)))
 
 (defun autosync-magit-dirs--assoc ()
   "Return non-nil when buffer's file belong to a directory to synchronise.
@@ -174,54 +181,36 @@ Stores information about the last pull and push operations."
 The value returned is an element of `autosync-magit-dirs'."
   (require 'magit-process nil t) ; also loads magit-git
   (when (featurep 'magit-git)
-    (let ((git-dir (magit-toplevel))) ; use buffer's defaults-directory
-      (and git-dir
-           (assoc git-dir autosync-magit-dirs)))))
+    (let ((repo_dir (magit-toplevel))) ; use buffer's defaults-directory
+      (and repo_dir
+           (assoc repo_dir autosync-magit-dirs)))))
 
 (defun autosync-magit--do-pull (&optional _)
-  "Buffer-local function called upon opening a file or window selection change."
+  "Buffer-local function which pulls upstream change."
   (when (buffer-file-name) ; avoid running on *minibuffer* when deselecting, e.g.
-    (let ((buffer (current-buffer)))
-      (autosync-magit--when-idle
-        (let* ((sync-cons (autosync-magit-dirs--assoc))
-               (sync (cdr (assoc (car sync-cons) autosync-magit--sync-alist))))
-          (when (and sync
-                     (time-less-p
-                      (time-add (autosync-magit--sync-last-pull sync)
-                                (seconds-to-time autosync-magit-pull-interval))
-                      (current-time)))
-            (setf (autosync-magit--sync-last-pull sync) (current-time))
-            (autosync-magit-pull buffer)))))))
-
-(defun autosync-magit--do-push-bounce (buffer dir message sync)
-  "Push `(BUFFER DIR MESSAGE SYNC)' when time elapsed without another push."
-  (let ((old-last-push (autosync-magit--sync-last-push sync)))
-    (setf (autosync-magit--sync-last-push sync) (current-time))
-    (if (time-less-p
-         (time-add old-last-push
-                   (seconds-to-time autosync-magit-push-debounce))
-         (current-time))
-        (autosync-magit-push buffer message)
-      (run-with-timer autosync-magit-push-debounce nil
-                      #'autosync-magit--do-push-bounce
-                      buffer dir message sync))))
+    (let* ((sync-cons (autosync-magit-dirs--assoc))
+           (sync (cdr (assoc (car sync-cons) autosync-magit--sync-alist))))
+      (when (and sync
+                 (time-less-p
+                  (time-add (autosync-magit--sync-last-pull sync)
+                            (seconds-to-time autosync-magit-pull-interval))
+                  (current-time)))
+        (setf (autosync-magit--sync-last-pull sync) (current-time))
+        (autosync-magit-pull (car sync-cons))))))
 
 (defun autosync-magit--do-push (&optional _)
-  "Buffer-local function called upon saving a buffer."
-  (let ((buffer (current-buffer)))
-    (autosync-magit--when-idle
-      (let* ((sync-cons (autosync-magit-dirs--assoc))
-             (sync (cdr (assoc (car sync-cons) autosync-magit--sync-alist))))
-        (when sync
-          (let ((old-last-push (autosync-magit--sync-last-push sync)))
-            (setf (autosync-magit--sync-last-push sync) (current-time))
-            (if (time-less-p
-                 (time-add old-last-push
-                           (seconds-to-time autosync-magit-push-debounce))
-                 (current-time))
-                (run-with-timer autosync-magit-push-debounce nil
-                                #'autosync-magit--do-push-bounce
-                                buffer (car sync-cons) (cdr sync-cons) sync))))))))
+  "Buffer-local function which pushes change upstream."
+  (let* ((sync-cons (autosync-magit-dirs--assoc))
+         (sync (cdr (assoc (car sync-cons) autosync-magit--sync-alist))))
+    (when (and sync
+               (time-less-p
+                (autosync-magit--sync-next-push sync)
+                (current-time)))
+      (setf (autosync-magit--sync-next-push sync)
+            (time-add (current-time) autosync-magit-push-debounce))
+      (run-with-timer autosync-magit-push-debounce nil
+                      #'autosync-magit-push
+                      (car sync-cons) (cdr sync-cons)))))
 
 ;;;###autoload
 (define-minor-mode autosync-magit-mode
@@ -238,7 +227,7 @@ The value returned is an element of `autosync-magit-dirs'."
                   (push (cons (car sync-cons)
                               (autosync-magit--sync-create
                                :last-pull (seconds-to-time 0)
-                               :last-push (seconds-to-time 0)))
+                               :next-push (seconds-to-time 0)))
                         autosync-magit--sync-alist))
               (add-hook 'after-save-hook #'autosync-magit--do-push nil t)
               (add-hook 'find-file-hook #'autosync-magit--do-pull nil t)
