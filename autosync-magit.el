@@ -98,7 +98,7 @@ variable ensures this is not done overly frequently."
   "Duration in seconds that must elapse before push can be called again.
 
 When you save a buffer, wait for `autosync-magit-push-debounce'
-to elapse before pushing to the remote (again). This ensures that
+to elapse before pushing to the remote (again).  This ensures that
 multiple file saves in a short period of time do not result in
 multiple pushes."
   :type 'integer
@@ -147,7 +147,7 @@ Stores timing about the pull and push operations."
   "Do `git fetch' then `git merge' from REPO_DIR.
 
 This interactive function does not check wether the repository
-belongs to `autosync-magit-dirs'. It is not thorttled either."
+belongs to `autosync-magit-dirs'.  It is not thorttled either."
   (interactive "D")
   (require 'magit-process nil t)
   (autosync-magit--after
@@ -162,7 +162,7 @@ belongs to `autosync-magit-dirs'. It is not thorttled either."
   "Do `git add -A', `git commit -m -a MESSAGE' then `git push' from REPO_DIR.
 
 This interactive function does not check wether the repository
-belongs to `autosync-magit-dirs'. It is not debounced either."
+belongs to `autosync-magit-dirs'.  It is not debounced either."
   (interactive "D\nMCommit message: ")
   (require 'magit-process nil t)
   (autosync-magit--after
