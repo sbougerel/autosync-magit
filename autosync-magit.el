@@ -84,7 +84,7 @@
   :group 'tools
   :group 'vc)
 
-(defcustom autosync-magit-pull-interval 300
+(defcustom autosync-magit-pull-interval 10
   "Buffer-local minimum interval between pull attempts, in seconds.
 
 When the buffer window is selected (i.e. becomes active),
@@ -152,10 +152,10 @@ belongs to `autosync-magit-dirs'.  It is not thorttled either."
   (require 'magit-process nil t)
   (autosync-magit--after
       (autosync-magit--with-repo repo_dir
-        (magit-run-git-async "fetch"))
+                                 (magit-run-git-async "fetch"))
     (autosync-magit--with-repo repo_dir
-      (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
-        (magit-run-git-async "merge")))))
+                               (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
+                                 (magit-run-git-async "merge")))))
 
 ;;;###autoload
 (defun autosync-magit-push (repo_dir message)
@@ -167,13 +167,13 @@ belongs to `autosync-magit-dirs'.  It is not debounced either."
   (require 'magit-process nil t)
   (autosync-magit--after
       (autosync-magit--with-repo repo_dir
-        (magit-run-git-async "add" "-A"))
+                                 (magit-run-git-async "add" "-A"))
     (autosync-magit--after
         (autosync-magit--with-repo repo_dir
-          (magit-run-git-async "commit" "-a" "-m" message))
+                                   (magit-run-git-async "commit" "-a" "-m" message))
       (autosync-magit--with-repo repo_dir
-        (when (not (magit-rev-eq "@{push}" "HEAD"))
-          (magit-run-git-async "push"))))))
+                                 (when (not (magit-rev-eq "@{push}" "HEAD"))
+                                   (magit-run-git-async "push"))))))
 
 (defun autosync-magit-dirs--assoc ()
   "Return non-nil when buffer's file belong to a directory to synchronise.
