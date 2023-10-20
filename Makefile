@@ -33,7 +33,7 @@ INIT_PACKAGE_EL := "(progn \
 
 BATCH = $(EMACS) -Q --batch --eval $(INIT_PACKAGE_EL)
 
-all: compile README.md
+all: compile
 
 compile: $(BYTEC)
 
