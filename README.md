@@ -14,44 +14,56 @@ devices.  It should never be used with typical repositories and especially
 not for team settings.  A typical use case consists in synchronising your
 personal notes between devices.
 
+To configure a repository to automatically synchronise, turn on
+`autosync-magit-mode` in a buffer, and set the package variables accordingly.
+Settings can be made permanent by adding `.dir-locals.el` in repositories you
+want to synchronise.  Example:
+
+    ((nil . ((eval . (autosync-magit-mode 1))
+             (autosync-magit-commit-message . "My commit message")
+             (autosync-magit-pull-interval . 30))))
+
+The configuration above turns on the minor mode for any file visited in the
+same directory as `.dir-locals.el` or in its sub-directories.  The
+`autosync-magit-commit-message` is used as the commit message for each
+commit.  The `autosync-magit-pull-interval` is the minimum interval between
+pull attempts, in seconds.  See the documentation for each variable for more
+details.
+
+This is a simple package, that lends much of its functionality to `magit`
+that does all the work asynchronously under the hood.
+
 ### Installation
 
 
 With `straight.el` and `use-package.el`, add this to your `~/.emacs.d/init.el`:
 
-```elisp
-(use-package autosync-magit
- :straight (:host github
-            :repo "sbougerel/autosync-magit"
-            :files ("*.el"))
- :config
- (setq autosync-magit-dirs
-       (list (cons "~/dir/to/sync" "Commit message")))
- (global-autosync-magit-mode 1))
- ```
+    (use-package autosync-magit
+      :straight (:host github
+                 :repo "sbougerel/autosync-magit"
+                 :files ("*.el")))
 
 And restart Emacs.  If you're using Doom Emacs, add this to your
 `~/.doom.d/packages.el`:
 
-```elisp
-(package! autosync-magit
-  :recipe (:host github
-           :repo "sbougerel/autosync-magit"
-           :files ("*.el")))
-```
+    (package! autosync-magit
+      :recipe (:host github
+               :repo "sbougerel/autosync-magit"
+               :files ("*.el")))
 
 Then add the following to `~/.doom.d/config.el`:
 
-```elisp
-(use-package! autosync-magit
- :config
- (setq autosync-magit-dirs
-       (list (cons "~/dir/to/sync" "Commit message")))
- (global-autosync-magit-mode 1))
-```
+    (use-package! autosync-magit)
 
-Then run `doom sync` to install it.
+Then run `doom sync' to install it.
 
+### Change Log
+
+
+0.2.0 - Use per-directory local variables
+Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
+
+0.1.0 - initial release
 
 
 
@@ -59,41 +71,55 @@ Then run `doom sync` to install it.
 
 #### `autosync-magit-pull-interval`
 
-Buffer-local minimum interval between pull attempts, in seconds.
+Minimum interval between pull attempts, in seconds.
 
-When the buffer window is selected (i.e. becomes active),
-`autosync-magit` attempts to pull updates from the remotes.  This
-variable ensures this is not done overly frequently.
+This variable is buffer-local.  When the buffer window is
+selected (i.e. becomes active), `autosync-magit` attempts to pull
+updates from the remotes.  This variable ensures this is not done
+overly frequently.
 
 #### `autosync-magit-push-debounce`
 
 Duration in seconds that must elapse before push can be called again.
 
-When you save a buffer, wait for `autosync-magit-push-debounce`
-to elapse before pushing to the remote (again). This ensures that
-multiple file saves in a short period of time do not result in
-multiple pushes.
+This variable is buffer-local.  When you save a buffer, wait for
+`autosync-magit-push-debounce` to elapse before pushing to the
+remote (again).  This ensures that multiple file saves in a short
+period of time do not result in multiple pushes.
+
+#### `autosync-magit-commit-message`
+
+Commit message to use for each commit.
+
+This variable is buffer-local.
 
 #### `autosync-magit-dirs`
 
 Alist of `(REPO_DIR . MESSAGE)` that should be synchronised.
 
-REPO_DIR is the top-level directory of the repository to synchronise.
-MESSAGE is the commit message to use when committing changes.
+*DEPRECATED*: use `.dir-locals.el` instead.  By using
+`.dir-locals.el`, you ensure that your private configuration does
+not depends on any particular project's location on a host, and
+you can set per-repository configuration.  Use of the variable
+will be removed in version 0.3.0.
+
+REPO_DIR is the top-level directory of the repository to
+synchronise.  MESSAGE is the commit message to use when
+committing changes.
 
 ### Function and Macro Documentation
 
 #### `(autosync-magit-pull REPO_DIR)`
 
-Do `git fetch` then `git merge` from REPO_DIR.
-This interactive function does not check wether the repository
-belongs to `autosync-magit-dirs`. It is not thorttled either.
+Do `git fetch' then `git merge' from REPO_DIR.
+This interactive function is not throttled, it is executed
+asynchronously, as soon as it called.
 
 #### `(autosync-magit-push REPO_DIR MESSAGE)`
 
-Do `git add -A`, `git commit -m -a MESSAGE` then `git push` from REPO_DIR.
-This interactive function does not check wether the repository
-belongs to `autosync-magit-dirs`. It is not debounced either.
+Do `git add -A', `git commit -m -a MESSAGE' then `git push' from REPO_DIR.
+This interactive function is not debounced, it is executed
+asynchronously, as soon as it called.
 
 -----
 <div style="padding-top:15px;color: #d0d0d0;">

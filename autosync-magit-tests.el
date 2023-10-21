@@ -132,8 +132,6 @@
 ;; Add push bounce / pull bounce tests
 (ert-deftest autosync-magit-dirs--do-pull--elapsed ()
   (cl-letf (((symbol-value 'call-recorder) nil)
-            ((symbol-value 'autosync-magit-dirs)
-             '(("/dir" . "commit message")))
             ((symbol-value 'autosync-magit--sync-alist)
              (list (cons "/dir" (autosync-magit--sync-create
                                  :last-pull (seconds-to-time 0)
@@ -148,8 +146,6 @@
 
 (ert-deftest autosync-magit-dirs--do-pull--throttled ()
   (cl-letf (((symbol-value 'call-recorder) nil)
-            ((symbol-value 'autosync-magit-dirs)
-             '(("/dir" . "commit message")))
             ((symbol-value 'autosync-magit--sync-alist)
              (list (cons "/dir" (autosync-magit--sync-create
                                  :last-pull (seconds-to-time (current-time))
@@ -164,8 +160,7 @@
 
 (ert-deftest autosync-magit-dirs--do-push--elapsed ()
   (cl-letf (((symbol-value 'call-recorder) nil)
-            ((symbol-value 'autosync-magit-dirs)
-             '(("/dir" . "commit message")))
+            ((symbol-value 'autosync-magit-commit-message) "commit message")
             ((symbol-value 'autosync-magit--sync-alist)
              (list (cons "/dir" (autosync-magit--sync-create
                                  :last-pull (seconds-to-time 0)
@@ -181,8 +176,7 @@
 
 (ert-deftest autosync-magit-dirs--do-push--debounced ()
   (cl-letf (((symbol-value 'call-recorder) nil)
-            ((symbol-value 'autosync-magit-dirs)
-             '(("/dir" . "commit message")))
+            ((symbol-value 'autosync-magit-commit-message) "commit message")
             ((symbol-value 'autosync-magit--sync-alist)
              (list (cons "/dir" (autosync-magit--sync-create
                                  :last-pull (seconds-to-time 0)
