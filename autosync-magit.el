@@ -4,7 +4,7 @@
 
 ;; Author: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Maintainer: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
-;; Version: 0.2.1
+;; Version: 0.2.2
 ;; Package-Requires: ((emacs "27.1") (magit "2.9.0"))
 ;; Keywords: convenience tools vc git
 ;; URL: https://github.com/sbougerel/autosync-magit
@@ -141,7 +141,7 @@ This variable is buffer-local."
 `.dir-locals.el', you ensure that your private configuration does
 not depends on any particular project's location on a host, and
 you can set per-repository configuration.  Use of the variable
-will be removed in version 0.3.0.
+will be removed in a future version.
 
 REPO_DIR is the top-level directory of the repository to
 synchronise.  MESSAGE is the commit message to use when

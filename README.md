@@ -55,15 +55,15 @@ Then add the following to `~/.doom.d/config.el`:
 
     (use-package! autosync-magit)
 
-Then run `doom sync' to install it.
+Then run `doom sync` to install it.
 
 ### Change Log
 
 
-0.2.0 - Use per-directory local variables
-Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
+- 0.2.0 - Use per-directory local variables
+  Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
 
-0.1.0 - initial release
+- 0.1.0 - initial release
 
 
 
@@ -101,7 +101,7 @@ Alist of `(REPO_DIR . MESSAGE)` that should be synchronised.
 `.dir-locals.el`, you ensure that your private configuration does
 not depends on any particular project's location on a host, and
 you can set per-repository configuration.  Use of the variable
-will be removed in version 0.3.0.
+will be removed in a future version.
 
 REPO_DIR is the top-level directory of the repository to
 synchronise.  MESSAGE is the commit message to use when
@@ -111,13 +111,13 @@ committing changes.
 
 #### `(autosync-magit-pull REPO_DIR)`
 
-Do `git fetch' then `git merge' from REPO_DIR.
+Do `git fetch` then `git merge` from REPO_DIR.
 This interactive function is not throttled, it is executed
 asynchronously, as soon as it called.
 
 #### `(autosync-magit-push REPO_DIR MESSAGE)`
 
-Do `git add -A', `git commit -m -a MESSAGE' then `git push' from REPO_DIR.
+Do `git add -A`, `git commit -m -a MESSAGE` then `git push` from REPO_DIR.
 This interactive function is not debounced, it is executed
 asynchronously, as soon as it called.
 
