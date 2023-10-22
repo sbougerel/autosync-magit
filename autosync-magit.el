@@ -4,7 +4,7 @@
 
 ;; Author: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Maintainer: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
-;; Version: 0.2.0
+;; Version: 0.2.1
 ;; Package-Requires: ((emacs "27.1") (magit "2.9.0"))
 ;; Keywords: convenience tools vc git
 ;; URL: https://github.com/sbougerel/autosync-magit
@@ -95,6 +95,7 @@
   :group 'tools
   :group 'vc)
 
+;;;###autoload (put 'autosync-magit-pull-interval 'safe-local-variable #'integerp)
 (defcustom autosync-magit-pull-interval 10
   "Minimum interval between pull attempts, in seconds.
 
@@ -103,11 +104,12 @@ selected (i.e. becomes active), `autosync-magit' attempts to pull
 updates from the remotes.  This variable ensures this is not done
 overly frequently."
   :type 'integer
-  :safe t
+  :safe #'integerp
   :local t
   :version "0.2.0"
   :group 'autosync-magit)
 
+;;;###autoload (put 'autosync-magit-push-debounce 'safe-local-variable #'integerp)
 (defcustom autosync-magit-push-debounce 5
   "Duration in seconds that must elapse before push can be called again.
 
@@ -116,17 +118,18 @@ This variable is buffer-local.  When you save a buffer, wait for
 remote (again).  This ensures that multiple file saves in a short
 period of time do not result in multiple pushes."
   :type 'integer
-  :safe t
+  :safe #'integerp
   :local t
   :version "0.2.0"
   :group 'autosync-magit)
 
+;;;###autoload (put 'autosync-magit-commit-message 'safe-local-variable #'stringp)
 (defcustom autosync-magit-commit-message "Automated commit by autosync-magit"
   "Commit message to use for each commit.
 
 This variable is buffer-local."
   :type 'string
-  :safe t
+  :safe #'stringp
   :local t
   :version "0.2.0"
   :group 'autosync-magit)
