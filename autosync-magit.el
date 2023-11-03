@@ -4,7 +4,7 @@
 
 ;; Author: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Maintainer: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
-;; Version: 0.2.2
+;; Version: 0.3.0
 ;; Package-Requires: ((emacs "27.1") (magit "2.9.0"))
 ;; Keywords: convenience tools vc git
 ;; URL: https://github.com/sbougerel/autosync-magit
@@ -41,9 +41,9 @@
 ;; Settings can be made permanent by adding `.dir-locals.el` in repositories you
 ;; want to synchronise.  Example:
 ;;
-;;     ((nil . ((eval . (autosync-magit-mode 1))
-;;              (autosync-magit-commit-message . "My commit message")
-;;              (autosync-magit-pull-interval . 30))))
+;;     ((nil . ((autosync-magit-commit-message . "My commit message")
+;;              (autosync-magit-pull-interval . 30)
+;;              (mode . autosync-magit))))
 ;;
 ;; The configuration above turns on the minor mode for any file visited in the
 ;; same directory as `.dir-locals.el' or in its sub-directories.  The
@@ -79,6 +79,9 @@
 ;; Then run `doom sync' to install it.
 
 ;;; Change Log:
+;;
+;; 0.3.0 - Merges are synchronous, all other operations are asynchronous.  This
+;; prevents any possible concurrency issues with `find-file-hook' functions.
 ;;
 ;; 0.2.0 - Use per-directory local variables
 ;; Deprecation of `autosync-magit-dirs' in favor of `.dir-locals.el'.
@@ -169,6 +172,7 @@ related buffers instead.")
 (declare-function magit-toplevel "magit-git" (&optional directory))
 (declare-function magit-rev-eq "magit-git" (a b))
 (declare-function magit-rev-ancestor-p "magit-git" (a b))
+(declare-function magit-run-git "magit-process" (&rest args))
 (declare-function magit-run-git-async "magit-process" (&rest args))
 
 ;; Implementation:
@@ -195,7 +199,7 @@ asynchronously, as soon as it called."
         (magit-run-git-async "fetch"))
     (autosync-magit--with-repo repo_dir
       (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
-        (magit-run-git-async "merge")))))
+        (magit-run-git "merge"))))) ; synchronous
 
 ;;;###autoload
 (defun autosync-magit-push (repo_dir message)
@@ -259,11 +263,9 @@ The value returned is an element of `autosync-magit-dirs`."
 Turn on `autosync-magit-mode' with `.dir-locals.el' in repositories you want to
 synchronise; example:
 
-#+BEGIN_SRC: elisp
-\((nil . ((eval . (autosync-magit-mode 1))
-         (autosync-magit-commit-message . \"My commit message\")
-         (autosync-magit-pull-interval . 30))))
-#+END_SRC
+    ((nil . ((autosync-magit-commit-message . \"My commit message\")
+             (autosync-magit-pull-interval . 30)
+             (mode . autosync-magit))))
 
 Customize these values to your liking."
   :init-value nil

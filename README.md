@@ -19,9 +19,9 @@ To configure a repository to automatically synchronise, turn on
 Settings can be made permanent by adding `.dir-locals.el` in repositories you
 want to synchronise.  Example:
 
-    ((nil . ((eval . (autosync-magit-mode 1))
-             (autosync-magit-commit-message . "My commit message")
-             (autosync-magit-pull-interval . 30))))
+    ((nil . ((autosync-magit-commit-message . \"My commit message\")
+             (autosync-magit-pull-interval . 30)
+             (mode . autosync-magit))))
 
 The configuration above turns on the minor mode for any file visited in the
 same directory as `.dir-locals.el` or in its sub-directories.  The
@@ -55,15 +55,18 @@ Then add the following to `~/.doom.d/config.el`:
 
     (use-package! autosync-magit)
 
-Then run `doom sync` to install it.
+Then run `doom sync' to install it.
 
 ### Change Log
 
 
-- 0.2.0 - Use per-directory local variables
-  Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
+0.3.0 - Merges are synchronous, all other operations are asynchronous.  This
+prevents any possible concurrency issues with `find-file-hook` functions.
 
-- 0.1.0 - initial release
+0.2.0 - Use per-directory local variables
+Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
+
+0.1.0 - initial release
 
 
 
@@ -111,13 +114,13 @@ committing changes.
 
 #### `(autosync-magit-pull REPO_DIR)`
 
-Do `git fetch` then `git merge` from REPO_DIR.
+Do `git fetch` then `git merge` from `REPO_DIR`.
 This interactive function is not throttled, it is executed
 asynchronously, as soon as it called.
 
 #### `(autosync-magit-push REPO_DIR MESSAGE)`
 
-Do `git add -A`, `git commit -m -a MESSAGE` then `git push` from REPO_DIR.
+Do `git add -A`, `git commit -m -a MESSAGE` then `git push` from `REPO_DIR`.
 This interactive function is not debounced, it is executed
 asynchronously, as soon as it called.
 
