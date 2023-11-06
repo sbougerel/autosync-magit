@@ -19,7 +19,7 @@ To configure a repository to automatically synchronise, turn on
 Settings can be made permanent by adding `.dir-locals.el` in repositories you
 want to synchronise.  Example:
 
-    ((nil . ((autosync-magit-commit-message . \"My commit message\")
+    ((nil . ((autosync-magit-commit-message . "My commit message")
              (autosync-magit-pull-interval . 30)
              (mode . autosync-magit))))
 
@@ -98,7 +98,7 @@ This variable is buffer-local.
 
 #### `autosync-magit-dirs`
 
-Alist of `(REPO_DIR . MESSAGE)` that should be synchronised.
+Alist of (REPO_DIR . MESSAGE) that should be synchronised.
 
 *DEPRECATED*: use `.dir-locals.el` instead.  By using
 `.dir-locals.el`, you ensure that your private configuration does
@@ -114,13 +114,13 @@ committing changes.
 
 #### `(autosync-magit-pull REPO_DIR)`
 
-Do `git fetch` then `git merge` from `REPO_DIR`.
+Fetch then merge (if needed) from REPO_DIR.
 This interactive function is not throttled, it is executed
 asynchronously, as soon as it called.
 
 #### `(autosync-magit-push REPO_DIR MESSAGE)`
 
-Do `git add -A`, `git commit -m -a MESSAGE` then `git push` from `REPO_DIR`.
+Stage any change, create commit with MESSAGE and push to REPO_DIR.
 This interactive function is not debounced, it is executed
 asynchronously, as soon as it called.
 

@@ -37,8 +37,8 @@
 ;; personal notes between devices.
 ;;
 ;; To configure a repository to automatically synchronise, turn on
-;; `autosync-magit-mode` in a buffer, and set the package variables accordingly.
-;; Settings can be made permanent by adding `.dir-locals.el` in repositories you
+;; `autosync-magit-mode' in a buffer, and set the package variables accordingly.
+;; Settings can be made permanent by adding `.dir-locals.el' in repositories you
 ;; want to synchronise.  Example:
 ;;
 ;;     ((nil . ((autosync-magit-commit-message . "My commit message")
@@ -138,7 +138,7 @@ This variable is buffer-local."
   :group 'autosync-magit)
 
 (defcustom autosync-magit-dirs nil
-  "Alist of `(REPO_DIR . MESSAGE)` that should be synchronised.
+  "Alist of (REPO_DIR . MESSAGE) that should be synchronised.
 
 *DEPRECATED*: use `.dir-locals.el' instead.  By using
 `.dir-locals.el', you ensure that your private configuration does
@@ -163,7 +163,7 @@ Stores timing about the pull and push operations."
   last-pull next-push)
 
 (defvar autosync-magit--sync-alist ()
-  "Global alist of `(REPO_DIR . OBJ)': sync OBJ for each DIRS.
+  "Global alist of (REPO_DIR . OBJ): sync OBJ for each DIRS.
 
 Do not modify this variable directly.  Visit files or close
 related buffers instead.")
@@ -188,7 +188,7 @@ related buffers instead.")
 
 ;;;###autoload
 (defun autosync-magit-pull (repo_dir)
-  "Do `git fetch' then `git merge' from REPO_DIR.
+  "Fetch then merge (if needed) from REPO_DIR.
 
 This interactive function is not throttled, it is executed
 asynchronously, as soon as it called."
@@ -203,7 +203,7 @@ asynchronously, as soon as it called."
 
 ;;;###autoload
 (defun autosync-magit-push (repo_dir message)
-  "Do `git add -A', `git commit -m -a MESSAGE' then `git push' from REPO_DIR.
+  "Stage any change, create commit with MESSAGE and push to REPO_DIR.
 
 This interactive function is not debounced, it is executed
 asynchronously, as soon as it called."
