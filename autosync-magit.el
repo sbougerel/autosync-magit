@@ -6,7 +6,7 @@
 ;; Maintainer: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Version: 0.4.0
 ;; Package-Requires: ((emacs "27.1") (magit "2.9.0"))
-;; Keywords: convenience tools vc git
+;; Keywords: convenience tools magit git
 ;; URL: https://github.com/sbougerel/autosync-magit
 
 ;; This file is NOT part of GNU Emacs.
@@ -107,11 +107,10 @@
 
 ;; Definitions:
 (defgroup autosync-magit nil
-  "Automated git synchronisation with upstream."
-  :group 'tools
-  :group 'vc)
+  "Automatically synchronize content with upstream via magit."
+  :group 'tools)
 
-;;;###autoload (put 'autosync-magit-pull-interval 'safe-local-variable #'integerp)
+;;;###autoload(put 'autosync-magit-pull-interval 'safe-local-variable 'integerp)
 (defcustom autosync-magit-pull-interval 10
   "Minimum interval between any pull attempts, in seconds.
 
@@ -133,12 +132,9 @@ this value per repository.  When `autosync-magit-mode' is turned
 on in a buffer, the buffer-local value is copied to the
 per-repository setting, overriding any previous value."
   :type 'integer
-  :safe #'integerp
-  :local t
-  :version "0.2.0"
   :group 'autosync-magit)
 
-;;;###autoload (put 'autosync-magit-pull-timer 'safe-local-variable #'integerp)
+;;;###autoload(put 'autosync-magit-pull-timer 'safe-local-variable 'integerp)
 (defcustom autosync-magit-pull-timer 300
   "Interval between background pull attempts, in seconds.
 
@@ -155,12 +151,9 @@ this value per repository.  When `autosync-magit-mode' is turned
 on in a buffer, the buffer-local value is copied to the
 per-repository setting, overriding any previous value."
   :type 'integer
-  :safe #'integerp
-  :local t
-  :version "0.4.0"
   :group 'autosync-magit)
 
-;;;###autoload (put 'autosync-magit-pull-when-visiting 'safe-local-variable #'booleanp)
+;;;###autoload(put 'autosync-magit-pull-when-visiting 'safe-local-variable 'booleanp)
 (defcustom autosync-magit-pull-when-visiting t
   "When non-nil, `find-file' triggers `autosync-magit-pull'.
 
@@ -176,12 +169,9 @@ Since it was the default behaviour in 0.3.0, before this tunable
 was added; it is kept as t by default.  It will likely become nil
 in future versions."
   :type 'boolean
-  :safe #'booleanp
-  :local t
-  :version "0.4.0"
   :group 'autosync-magit)
 
-;;;###autoload (put 'autosync-magit-push-debounce 'safe-local-variable #'integerp)
+;;;###autoload(put 'autosync-magit-push-debounce 'safe-local-variable 'integerp)
 (defcustom autosync-magit-push-debounce 5
   "Default duration in seconds that must elapse before the next push.
 
@@ -196,12 +186,9 @@ this value per repository.  When `autosync-magit-mode' is turned
 on in a buffer, the buffer-local value is copied to the
 per-repository setting, overriding any previous value."
   :type 'integer
-  :safe #'integerp
-  :local t
-  :version "0.2.0"
   :group 'autosync-magit)
 
-;;;###autoload (put 'autosync-magit-commit-message 'safe-local-variable #'stringp)
+;;;###autoload(put 'autosync-magit-commit-message 'safe-local-variable 'stringp)
 (defcustom autosync-magit-commit-message "Automated commit by autosync-magit"
   "Commit message to use for each commit.
 
@@ -212,9 +199,6 @@ message.  *Caveat*: when multiple file saves occur within
 `autosync-magit-push-debounce', the commit message is the
 buffer-local value of the first file saved."
   :type 'string
-  :safe #'stringp
-  :local t
-  :version "0.2.0"
   :group 'autosync-magit)
 
 (cl-defstruct (autosync-magit--sync
