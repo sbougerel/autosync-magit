@@ -86,23 +86,15 @@ Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
 
 Minimum interval between any pull attempts, in seconds.
 
-`autosync-magit` starts pulling
-updates from remotes periodically if `autosync-magit-mode` is
-turned on for the buffer.  It pulls update via a timer or when
-visiting a file if `autosync-magit-pull-when-visiting` is t for
-that buffer.
+`autosync-magit` starts pulls updates either via a timer and/or
+when visiting a file if `autosync-magit-pull-when-visiting` is t
+for that buffer.
 
 This variable sets the minimum interval between any two pull
 attempts, it is always enforced.  This is to ensure that
 `autosync-magit-pull-timer` or
 `autosync-magit-pull-when-visiting` will never run too close to
 one another.
-
-This variable controls a buffer-local value that can be specified
-in `.dir-locals.el`.  `autosync-magit` keeps a single copy of
-this value per repository.  When `autosync-magit-mode` is turned
-on in a buffer, the buffer-local value is copied to the
-per-repository setting, overriding any previous value.
 
 #### `autosync-magit-pull-timer`
 
@@ -115,18 +107,19 @@ variable sets or updates the period of the background timer.
 Updates are not guaranteed to be pulled from the remote on the
 timer expiring; see `autosync-magit-pull-interval`.
 
-This variable controls a buffer-local value that can be specified
-in `.dir-locals.el`.  `autosync-magit` keeps a single copy of
-this value per repository.  When `autosync-magit-mode` is turned
-on in a buffer, the buffer-local value is copied to the
-per-repository setting, overriding any previous value.
+It is recommended to use directory-local variables (in
+`.dir-locals.el`) to set this variable value.  `autosync-magit`
+keeps a single copy of this value per repository.  When
+`autosync-magit-mode` is turned on in a buffer, the variable
+value is copied to the per-repository setting, overriding any
+previous value.
 
 #### `autosync-magit-pull-when-visiting`
 
 When non-nil, `find-file` triggers `autosync-magit-pull`.
 
-This variable is buffer-local.  When `autosync-magit-mode` is
-enabled for the buffer, visiting a file also triggers a pull.
+When `autosync-magit-mode` is enabled for the buffer, visiting a
+file also triggers a pull.
 
 Do note that pulls are done asynchronously, even if merges are
 synchronous.  All hooks running on the buffer will likely have
@@ -137,6 +130,9 @@ Since it was the default behaviour in 0.3.0, before this tunable
 was added; it is kept as t by default.  It will likely become nil
 in future versions.
 
+It is recommended to use directory-local variables (in
+`.dir-locals.el`) to set this variable value.
+
 #### `autosync-magit-push-debounce`
 
 Default duration in seconds that must elapse before the next push.
@@ -146,11 +142,8 @@ to elapse before pushing to the remote (again).  This ensures
 that multiple file saves in a short period of time do not result
 in multiple pushes.
 
-This variable controls a buffer-local value that can be specified
-in `.dir-locals.el`.  `autosync-magit` keeps a single copy of
-this value per repository.  When `autosync-magit-mode` is turned
-on in a buffer, the buffer-local value is copied to the
-per-repository setting, overriding any previous value.
+It is recommended to use directory-local variables (in
+`.dir-locals.el`) to set this variable value.
 
 #### `autosync-magit-commit-message`
 
