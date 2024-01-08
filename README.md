@@ -67,14 +67,18 @@ Then run `doom sync' to install it.
 0.4.0 - Introduces a background timer for periodic pull.  This is superior to
 the previous pull-on-events model, which does not work fast enough in a
 variety of use cases.  Add `autosync-magit-pull-when-visiting` and
-`autosync-magit-pull-timer` for background periodic pull.  Also removed
-`autosync-magit-dirs`.
+`autosync-magit-pull-timer` for background periodic pull.  Users are advised
+to switch from setting `autosync-magit-pull-interval` to setting
+`autosync-magit-pull-timer` in directory-local variables.  Additionally, the
+deprecated variable `autosync-magit-dirs` was removed.  For users that wish
+to start synchronisation as soon as Emacs starts, they may simply visit the
+directory in a temporary buffer during initialisation.
 
 0.3.0 - Merges are synchronous, all other operations are asynchronous.  This
 prevents any possible concurrency issues with `find-file-hook` functions.
 
-0.2.0 - Use per-directory local variables
-Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
+0.2.0 - Use per-directory local variables.  Deprecation of
+`autosync-magit-dirs` in favor of `.dir-locals.el`.
 
 0.1.0 - initial release
 
