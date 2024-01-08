@@ -4,7 +4,7 @@
 
 ;; Author: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Maintainer: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
-;; Version: 0.3.0
+;; Version: 0.4.0
 ;; Package-Requires: ((emacs "27.1") (magit "2.9.0"))
 ;; Keywords: convenience tools vc git
 ;; URL: https://github.com/sbougerel/autosync-magit
@@ -29,12 +29,16 @@
 ;; [![License GPLv3](https://img.shields.io/badge/license-GPL_v3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.html)
 ;; [![CI Result](https://github.com/sbougerel/autosync-magit/actions/workflows/makefile.yml/badge.svg)](https://github.com/sbougerel/autosync-magit/actions)
 ;;
-;; This package provides a minor mode to automatically synchronise a local git
+;; Autosync-Magit provides a minor mode to automatically synchronise a local git
 ;; repository branch with its upstream.  It is intended to be used
 ;; exceptionally: when git is used solely to synchronise private content between
-;; devices.  It should never be used with typical repositories and especially
-;; not for team settings.  A typical use case consists in synchronising your
-;; personal notes between devices.
+;; devices.  With this use case, there is typically no need to create branches,
+;; and all changes can be pushed to the remote as soon as they are committed.
+;; The author created it to synchronise his personal notes between different
+;; devices.
+;;
+;; Autosync-Magit should never be used for other use cases and especially not
+;; for team settings.
 ;;
 ;; To configure a repository to automatically synchronise, turn on
 ;; `autosync-magit-mode' in a buffer, and set the package variables accordingly.
@@ -42,15 +46,15 @@
 ;; want to synchronise.  Example:
 ;;
 ;;     ((nil . ((autosync-magit-commit-message . "My commit message")
-;;              (autosync-magit-pull-interval . 30)
+;;              (autosync-magit-pull-timer . 300)
 ;;              (mode . autosync-magit))))
 ;;
 ;; The configuration above turns on the minor mode for any file visited in the
 ;; same directory as `.dir-locals.el' or in its sub-directories.  The
 ;; `autosync-magit-commit-message' is used as the commit message for each
-;; commit.  The `autosync-magit-pull-interval' is the minimum interval between
-;; pull attempts, in seconds.  See the documentation for each variable for more
-;; details.
+;; commit.  The `autosync-magit-pull-timer' controls the period between
+;; background pull attempts, in seconds.  See the documentation of each variable
+;; for more details.
 ;;
 ;; This is a simple package, that lends much of its functionality to `magit'
 ;; that does all the work asynchronously under the hood.
@@ -80,6 +84,12 @@
 
 ;;; Change Log:
 ;;
+;; 0.4.0 - Introduces a background timer for periodic pull.  This is superior to
+;; the previous pull-on-events model, which does not work fast enough in a
+;; variety of use cases.  Add `autosync-magit-pull-when-visiting' and
+;; `autosync-magit-pull-timer' for background periodic pull.  Also removed
+;; `autosync-magit-dirs'.
+;;
 ;; 0.3.0 - Merges are synchronous, all other operations are asynchronous.  This
 ;; prevents any possible concurrency issues with `find-file-hook' functions.
 ;;
@@ -92,6 +102,9 @@
 
 (eval-when-compile (require 'cl-lib))
 
+(require 'magit-git)
+(require 'magit-process)
+
 ;; Definitions:
 (defgroup autosync-magit nil
   "Automated git synchronisation with upstream."
@@ -100,26 +113,88 @@
 
 ;;;###autoload (put 'autosync-magit-pull-interval 'safe-local-variable #'integerp)
 (defcustom autosync-magit-pull-interval 10
-  "Minimum interval between pull attempts, in seconds.
+  "Minimum interval between any pull attempts, in seconds.
 
-This variable is buffer-local.  When the buffer window is
-selected (i.e. becomes active), `autosync-magit' attempts to pull
-updates from the remotes.  This variable ensures this is not done
-overly frequently."
+`autosync-magit' starts pulling
+updates from remotes periodically if `autosync-magit-mode' is
+turned on for the buffer.  It pulls update via a timer or when
+visiting a file if `autosync-magit-pull-when-visiting' is t for
+that buffer.
+
+This variable sets the minimum interval between any two pull
+attempts, it is always enforced.  This is to ensure that
+`autosync-magit-pull-timer' or
+`autosync-magit-pull-when-visiting' will never run too close to
+one another.
+
+This variable controls a buffer-local value that can be specified
+in `.dir-locals.el'.  `autosync-magit' keeps a single copy of
+this value per repository.  When `autosync-magit-mode' is turned
+on in a buffer, the buffer-local value is copied to the
+per-repository setting, overriding any previous value."
   :type 'integer
   :safe #'integerp
   :local t
   :version "0.2.0"
   :group 'autosync-magit)
 
+;;;###autoload (put 'autosync-magit-pull-timer 'safe-local-variable #'integerp)
+(defcustom autosync-magit-pull-timer 300
+  "Interval between background pull attempts, in seconds.
+
+`autosync-magit' start pulling updates from remotes periodically
+via a background timer runing as soon as a buffer with
+`autosync-magit-mode' visits a file in a repository.  This
+variable sets or updates the period of the background timer.
+Updates are not guaranteed to be pulled from the remote on the
+timer expiring; see `autosync-magit-pull-interval'.
+
+This variable controls a buffer-local value that can be specified
+in `.dir-locals.el'.  `autosync-magit' keeps a single copy of
+this value per repository.  When `autosync-magit-mode' is turned
+on in a buffer, the buffer-local value is copied to the
+per-repository setting, overriding any previous value."
+  :type 'integer
+  :safe #'integerp
+  :local t
+  :version "0.4.0"
+  :group 'autosync-magit)
+
+;;;###autoload (put 'autosync-magit-pull-when-visiting 'safe-local-variable #'booleanp)
+(defcustom autosync-magit-pull-when-visiting t
+  "When non-nil, `find-file' triggers `autosync-magit-pull'.
+
+This variable is buffer-local.  When `autosync-magit-mode' is
+enabled for the buffer, visiting a file also triggers a pull.
+
+Do note that pulls are done asynchronously, even if merges are
+synchronous.  All hooks running on the buffer will likely have
+completed before git merge.  This setting is best used when
+paired with Auto-Revert Mode.
+
+Since it was the default behaviour in 0.3.0, before this tunable
+was added; it is kept as t by default.  It will likely become nil
+in future versions."
+  :type 'boolean
+  :safe #'booleanp
+  :local t
+  :version "0.4.0"
+  :group 'autosync-magit)
+
 ;;;###autoload (put 'autosync-magit-push-debounce 'safe-local-variable #'integerp)
 (defcustom autosync-magit-push-debounce 5
-  "Duration in seconds that must elapse before push can be called again.
+  "Default duration in seconds that must elapse before the next push.
 
-This variable is buffer-local.  When you save a buffer, wait for
-`autosync-magit-push-debounce' to elapse before pushing to the
-remote (again).  This ensures that multiple file saves in a short
-period of time do not result in multiple pushes."
+When you save a buffer, wait for `autosync-magit-push-debounce'
+to elapse before pushing to the remote (again).  This ensures
+that multiple file saves in a short period of time do not result
+in multiple pushes.
+
+This variable controls a buffer-local value that can be specified
+in `.dir-locals.el'.  `autosync-magit' keeps a single copy of
+this value per repository.  When `autosync-magit-mode' is turned
+on in a buffer, the buffer-local value is copied to the
+per-repository setting, overriding any previous value."
   :type 'integer
   :safe #'integerp
   :local t
@@ -130,28 +205,16 @@ period of time do not result in multiple pushes."
 (defcustom autosync-magit-commit-message "Automated commit by autosync-magit"
   "Commit message to use for each commit.
 
-This variable is buffer-local."
+This variable is buffer-local.  Since the variable is
+buffer-local, and commits & pushes are triggered from
+`write-file-functions', each file can have its custom commit
+message.  *Caveat*: when multiple file saves occur within
+`autosync-magit-push-debounce', the commit message is the
+buffer-local value of the first file saved."
   :type 'string
   :safe #'stringp
   :local t
   :version "0.2.0"
-  :group 'autosync-magit)
-
-(defcustom autosync-magit-dirs nil
-  "Alist of (REPO_DIR . MESSAGE) that should be synchronised.
-
-*DEPRECATED*: use `.dir-locals.el' instead.  By using
-`.dir-locals.el', you ensure that your private configuration does
-not depends on any particular project's location on a host, and
-you can set per-repository configuration.  Use of the variable
-will be removed in a future version.
-
-REPO_DIR is the top-level directory of the repository to
-synchronise.  MESSAGE is the commit message to use when
-committing changes."
-  :type '(alist
-          :key-type (directory :tag "Repository top-level directory")
-          :value-type (string :tag "Commit message"))
   :group 'autosync-magit)
 
 (cl-defstruct (autosync-magit--sync
@@ -160,20 +223,14 @@ committing changes."
   "A synchronisation object for a directory.
 
 Stores timing about the pull and push operations."
-  last-pull next-push)
+  last-pull next-push timer)
 
 (defvar autosync-magit--sync-alist ()
   "Global alist of (REPO_DIR . OBJ): sync OBJ for each DIRS.
 
-Do not modify this variable directly.  Visit files or close
-related buffers instead.")
-
-;; Check-declare lazy-loaded functions:
-(declare-function magit-toplevel "magit-git" (&optional directory))
-(declare-function magit-rev-eq "magit-git" (a b))
-(declare-function magit-rev-ancestor-p "magit-git" (a b))
-(declare-function magit-run-git "magit-process" (&rest args))
-(declare-function magit-run-git-async "magit-process" (&rest args))
+Do not modify this variable directly.  Visit files in buffers
+with `autosync-magit-mode' turned on or use `autosync-magit-set'
+instead.")
 
 ;; Implementation:
 (defmacro autosync-magit--after (process &rest body)
@@ -182,7 +239,10 @@ related buffers instead.")
   `(set-process-sentinel ,process (lambda (&rest _) ,@body)))
 
 (defmacro autosync-magit--with-repo (repo_dir &rest body)
-  "Run BODY in a temporary buffer where current directory is REPO_DIR."
+  "Run BODY in a temporary buffer where current directory is REPO_DIR.
+
+Since file-visiting buffer may be killed before this function runs,
+we don't rely on them."
   (declare (indent 1) (debug t))
   `(with-temp-buffer (cd ,repo_dir) ,@body))
 
@@ -190,16 +250,21 @@ related buffers instead.")
 (defun autosync-magit-pull (repo_dir)
   "Fetch then merge (if needed) from REPO_DIR.
 
-This interactive function is not throttled, it is executed
-asynchronously, as soon as it called."
+This interactive function is not throttled, it is executed as
+soon as it called.  Merges are synchronous, to minimize possible
+conflicts with files modified by Emacs in the repository."
   (interactive "D")
-  (require 'magit-process nil t)
-  (autosync-magit--after
-      (autosync-magit--with-repo repo_dir
-        (magit-run-git-async "fetch"))
-    (autosync-magit--with-repo repo_dir
-      (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
-        (magit-run-git "merge"))))) ; synchronous
+  (let ((repo_dir (magit-toplevel repo_dir)))
+    (if (not repo_dir)
+        (message (format "Autosync-Magit: \"%s\" is not a path to a git repository" repo_dir))
+      (when-let ((sync (cdr (assoc repo_dir autosync-magit--sync-alist))))
+        (setf (autosync-magit--sync-last-pull sync) (current-time)))
+      (autosync-magit--after
+          (autosync-magit--with-repo repo_dir
+            (magit-run-git-async "fetch"))
+        (autosync-magit--with-repo repo_dir
+          (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
+            (magit-run-git "merge"))))))) ; synchronous
 
 ;;;###autoload
 (defun autosync-magit-push (repo_dir message)
@@ -208,41 +273,44 @@ asynchronously, as soon as it called."
 This interactive function is not debounced, it is executed
 asynchronously, as soon as it called."
   (interactive "D\nMCommit message: ")
-  (require 'magit-process nil t)
-  (autosync-magit--after
-      (autosync-magit--with-repo repo_dir
-        (magit-run-git-async "add" "-A"))
-    (autosync-magit--after
-        (autosync-magit--with-repo repo_dir
-          (magit-run-git-async "commit" "-a" "-m" message))
-      (autosync-magit--with-repo repo_dir
-        (when (not (magit-rev-eq "@{push}" "HEAD"))
-          (magit-run-git-async "push"))))))
+  (let ((repo_dir (magit-toplevel repo_dir)))
+    (if (not repo_dir)
+        (message (format "Autosync-Magit: \"%s\" is not a path to a git repository" repo_dir))
+      (autosync-magit--after
+          (autosync-magit--with-repo repo_dir
+            (magit-run-git-async "add" "-A"))
+        (autosync-magit--after
+            (autosync-magit--with-repo repo_dir
+              (magit-run-git-async "commit" "-a" "-m" message))
+          (autosync-magit--with-repo repo_dir
+            (when (not (magit-rev-eq "@{push}" "HEAD"))
+              (magit-run-git-async "push"))))))))
 
-(defun autosync-magit-dirs--assoc ()
-  "Return non-nil when buffer's file belong to a directory to synchronise.
+(defun autosync-magit--throttle-pull (repo_dir)
+  "Pull change from upstream into REPO_DIR."
+  (when-let ((sync (cdr (assoc repo_dir autosync-magit--sync-alist))))
+    (when (time-less-p
+           (time-add (autosync-magit--sync-last-pull sync)
+                     (seconds-to-time autosync-magit-pull-interval))
+           (current-time))
+      (autosync-magit-pull repo_dir))))
 
-The value returned is an element of `autosync-magit-dirs`."
-  (require 'magit-process nil t) ; also loads magit-git
-  (when (featurep 'magit-git)
-    (let ((repo_dir (magit-toplevel))) ; use buffer's defaults-directory
-      (and repo_dir
-           (assoc repo_dir autosync-magit-dirs)))))
-
-(defun autosync-magit--do-pull (&optional _)
-  "Pull upstream change with a thorttle."
+(defun autosync-magit--pull-on-find-file (&optional _)
+  "Pull upstream change when visiting a file."
   (when (buffer-file-name) ; avoid running on *minibuffer* when deselecting, e.g.
-    (let* ((repo_dir (magit-toplevel))
-           (sync (cdr (assoc repo_dir autosync-magit--sync-alist))))
-      (when (and sync
-                 (time-less-p
-                  (time-add (autosync-magit--sync-last-pull sync)
-                            (seconds-to-time autosync-magit-pull-interval))
-                  (current-time)))
-        (setf (autosync-magit--sync-last-pull sync) (current-time))
-        (autosync-magit-pull repo_dir)))))
+    (when-let ((repo_dir (magit-toplevel)))
+      (autosync-magit--throttle-pull repo_dir))))
 
-(defun autosync-magit--do-push (&optional _)
+(defun autosync-magit--pull-on-timer (repo_dir)
+  "Periodically pulls REPO_DIR from upstream."
+  (when-let ((time_triggered (current-time))
+             (sync (cdr (assoc repo_dir autosync-magit--sync-alist))))
+    (autosync-magit--throttle-pull repo_dir)
+    (run-with-timer (max 1 (- (autosync-magit--sync-timer sync)
+                              (floor (float-time (time-subtract nil time_triggered)))))
+                    nil #'autosync-magit--pull-on-timer repo_dir)))
+
+(defun autosync-magit--push-after-save (&optional _)
   "Push change upstream with a debounce."
   (let* ((repo_dir (magit-toplevel))
          (sync (cdr (assoc repo_dir autosync-magit--sync-alist))))
@@ -264,7 +332,7 @@ Turn on `autosync-magit-mode' with `.dir-locals.el' in repositories you want to
 synchronise; example:
 
     ((nil . ((autosync-magit-commit-message . \"My commit message\")
-             (autosync-magit-pull-interval . 30)
+             (autosync-magit-pull-timer . 300)
              (mode . autosync-magit))))
 
 Customize these values to your liking."
@@ -274,41 +342,26 @@ Customize these values to your liking."
   :group 'autosync-magit
   (if autosync-magit-mode
       (let ((repo_dir (magit-toplevel)))
-        (if repo_dir
-            (progn
-              (if (not (assoc repo_dir autosync-magit--sync-alist))
-                  (push (cons repo_dir
-                              (autosync-magit--sync-create
-                               :last-pull (seconds-to-time 0)
-                               :next-push (seconds-to-time 0)))
-                        autosync-magit--sync-alist))
-              (add-hook 'after-save-hook #'autosync-magit--do-push nil t)
-              (add-hook 'find-file-hook #'autosync-magit--do-pull nil t)
-              (add-hook 'window-selection-change-functions #'autosync-magit--do-pull nil t))
-          (autosync-magit-mode -1)))
-    (remove-hook 'after-save-hook #'autosync-magit--do-push t)
-    (remove-hook 'find-file-hook #'autosync-magit--do-pull t)
-    (remove-hook 'window-selection-change-functions #'autosync-magit--do-pull t)))
-
-(defun autosync-magit--turn-on ()
-  "Turn on `autosync-magit-mode'."
-  (when (buffer-file-name)
-    ;; `autosync-magit-dirs' is being deprecated in favor of `.dir-locals.el';
-    ;; to ensure compatibility with older configuration, we perform the check
-    ;; with `autosync-magit-dirs' here, where we also set the associated
-    ;; buffer-local variable `autosync-magit-commit-message'.  This will be
-    ;; removed in a future version.
-    (let ((elem (autosync-magit-dirs--assoc)))
-      (if elem
-          (progn
-            (message "autosync-magit: deprecated use of `autosync-magit-dirs'.  Please use `.dir-locals.el' instead, see documentation.")
-            (setq autosync-magit-commit-message (cdr elem))
-            (autosync-magit-mode +1))))))
-
-;;;###autoload
-(define-global-minor-mode global-autosync-magit-mode autosync-magit-mode
-  autosync-magit--turn-on
-  :group 'autosync-magit)
+        (if (not repo_dir)
+            (autosync-magit-mode -1)
+          (let ((sync (cdr (assoc repo_dir autosync-magit--sync-alist))))
+            (if sync
+                ;; Repo already visited: update timer
+                (setf (autosync-magit--sync-timer sync)
+                      autosync-magit-pull-timer)
+              ;; First file visited for repo: add to alist and launch timer
+              (push (cons repo_dir
+                          (autosync-magit--sync-create
+                           :last-pull (seconds-to-time 0)
+                           :next-push (seconds-to-time 0)
+                           :timer autosync-magit-pull-timer))
+                    autosync-magit--sync-alist)
+              (autosync-magit--pull-on-timer repo_dir)))
+          (add-hook 'after-save-hook #'autosync-magit--push-after-save nil t)
+          (if autosync-magit-pull-when-visiting
+              (add-hook 'find-file-hook #'autosync-magit--pull-on-find-file nil t))))
+    (remove-hook 'after-save-hook #'autosync-magit--push-after-save t)
+    (remove-hook 'find-file-hook #'autosync-magit--pull-on-find-file t)))
 
 (provide 'autosync-magit)
 ;;; autosync-magit.el ends here

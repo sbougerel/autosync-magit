@@ -7,12 +7,16 @@
 [![License GPLv3](https://img.shields.io/badge/license-GPL_v3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.html)
 [![CI Result](https://github.com/sbougerel/autosync-magit/actions/workflows/makefile.yml/badge.svg)](https://github.com/sbougerel/autosync-magit/actions)
 
-This package provides a minor mode to automatically synchronise a local git
+Autosync-Magit provides a minor mode to automatically synchronise a local git
 repository branch with its upstream.  It is intended to be used
 exceptionally: when git is used solely to synchronise private content between
-devices.  It should never be used with typical repositories and especially
-not for team settings.  A typical use case consists in synchronising your
-personal notes between devices.
+devices.  With this use case, there is typically no need to create branches,
+and all changes can be pushed to the remote as soon as they are committed.
+The author created it to synchronise his personal notes between different
+devices.
+
+Autosync-Magit should never be used for other use cases and especially not
+for team settings.
 
 To configure a repository to automatically synchronise, turn on
 `autosync-magit-mode` in a buffer, and set the package variables accordingly.
@@ -20,15 +24,15 @@ Settings can be made permanent by adding `.dir-locals.el` in repositories you
 want to synchronise.  Example:
 
     ((nil . ((autosync-magit-commit-message . "My commit message")
-             (autosync-magit-pull-interval . 30)
+             (autosync-magit-pull-timer . 300)
              (mode . autosync-magit))))
 
 The configuration above turns on the minor mode for any file visited in the
 same directory as `.dir-locals.el` or in its sub-directories.  The
 `autosync-magit-commit-message` is used as the commit message for each
-commit.  The `autosync-magit-pull-interval` is the minimum interval between
-pull attempts, in seconds.  See the documentation for each variable for more
-details.
+commit.  The `autosync-magit-pull-timer` controls the period between
+background pull attempts, in seconds.  See the documentation of each variable
+for more details.
 
 This is a simple package, that lends much of its functionality to `magit`
 that does all the work asynchronously under the hood.
@@ -60,6 +64,12 @@ Then run `doom sync' to install it.
 ### Change Log
 
 
+0.4.0 - Introduces a background timer for periodic pull.  This is superior to
+the previous pull-on-events model, which does not work fast enough in a
+variety of use cases.  Add `autosync-magit-pull-when-visiting` and
+`autosync-magit-pull-timer` for background periodic pull.  Also removed
+`autosync-magit-dirs`.
+
 0.3.0 - Merges are synchronous, all other operations are asynchronous.  This
 prevents any possible concurrency issues with `find-file-hook` functions.
 
@@ -74,49 +84,93 @@ Deprecation of `autosync-magit-dirs` in favor of `.dir-locals.el`.
 
 #### `autosync-magit-pull-interval`
 
-Minimum interval between pull attempts, in seconds.
+Minimum interval between any pull attempts, in seconds.
 
-This variable is buffer-local.  When the buffer window is
-selected (i.e. becomes active), `autosync-magit` attempts to pull
-updates from the remotes.  This variable ensures this is not done
-overly frequently.
+`autosync-magit` starts pulling
+updates from remotes periodically if `autosync-magit-mode` is
+turned on for the buffer.  It pulls update via a timer or when
+visiting a file if `autosync-magit-pull-when-visiting` is t for
+that buffer.
+
+This variable sets the minimum interval between any two pull
+attempts, it is always enforced.  This is to ensure that
+`autosync-magit-pull-timer` or
+`autosync-magit-pull-when-visiting` will never run too close to
+one another.
+
+This variable controls a buffer-local value that can be specified
+in `.dir-locals.el`.  `autosync-magit` keeps a single copy of
+this value per repository.  When `autosync-magit-mode` is turned
+on in a buffer, the buffer-local value is copied to the
+per-repository setting, overriding any previous value.
+
+#### `autosync-magit-pull-timer`
+
+Interval between background pull attempts, in seconds.
+
+`autosync-magit` start pulling updates from remotes periodically
+via a background timer runing as soon as a buffer with
+`autosync-magit-mode` visits a file in a repository.  This
+variable sets or updates the period of the background timer.
+Updates are not guaranteed to be pulled from the remote on the
+timer expiring; see `autosync-magit-pull-interval`.
+
+This variable controls a buffer-local value that can be specified
+in `.dir-locals.el`.  `autosync-magit` keeps a single copy of
+this value per repository.  When `autosync-magit-mode` is turned
+on in a buffer, the buffer-local value is copied to the
+per-repository setting, overriding any previous value.
+
+#### `autosync-magit-pull-when-visiting`
+
+When non-nil, `find-file` triggers `autosync-magit-pull`.
+
+This variable is buffer-local.  When `autosync-magit-mode` is
+enabled for the buffer, visiting a file also triggers a pull.
+
+Do note that pulls are done asynchronously, even if merges are
+synchronous.  All hooks running on the buffer will likely have
+completed before git merge.  This setting is best used when
+paired with Auto-Revert Mode.
+
+Since it was the default behaviour in 0.3.0, before this tunable
+was added; it is kept as t by default.  It will likely become nil
+in future versions.
 
 #### `autosync-magit-push-debounce`
 
-Duration in seconds that must elapse before push can be called again.
+Default duration in seconds that must elapse before the next push.
 
-This variable is buffer-local.  When you save a buffer, wait for
-`autosync-magit-push-debounce` to elapse before pushing to the
-remote (again).  This ensures that multiple file saves in a short
-period of time do not result in multiple pushes.
+When you save a buffer, wait for `autosync-magit-push-debounce`
+to elapse before pushing to the remote (again).  This ensures
+that multiple file saves in a short period of time do not result
+in multiple pushes.
+
+This variable controls a buffer-local value that can be specified
+in `.dir-locals.el`.  `autosync-magit` keeps a single copy of
+this value per repository.  When `autosync-magit-mode` is turned
+on in a buffer, the buffer-local value is copied to the
+per-repository setting, overriding any previous value.
 
 #### `autosync-magit-commit-message`
 
 Commit message to use for each commit.
 
-This variable is buffer-local.
-
-#### `autosync-magit-dirs`
-
-Alist of (REPO_DIR . MESSAGE) that should be synchronised.
-
-*DEPRECATED*: use `.dir-locals.el` instead.  By using
-`.dir-locals.el`, you ensure that your private configuration does
-not depends on any particular project's location on a host, and
-you can set per-repository configuration.  Use of the variable
-will be removed in a future version.
-
-REPO_DIR is the top-level directory of the repository to
-synchronise.  MESSAGE is the commit message to use when
-committing changes.
+This variable is buffer-local.  Since the variable is
+buffer-local, and commits & pushes are triggered from
+`write-file-functions`, each file can have its custom commit
+message.  *Caveat*: when multiple file saves occur within
+`autosync-magit-push-debounce`, the commit message is the
+buffer-local value of the first file saved.
 
 ### Function and Macro Documentation
 
 #### `(autosync-magit-pull REPO_DIR)`
 
 Fetch then merge (if needed) from REPO_DIR.
-This interactive function is not throttled, it is executed
-asynchronously, as soon as it called.
+This interactive function is not throttled, it is executed as
+soon as it called.  Merges are synchronous, to minimize possible
+conflicts with files modified by Emacs in the repository.
 
 #### `(autosync-magit-push REPO_DIR MESSAGE)`
 
