@@ -198,6 +198,11 @@ buffer-local value of the first file saved."
   :type 'string
   :group 'autosync-magit)
 
+(defcustom autosync-magit-after-merge-hook nil
+  "Hook run after a merge is completed."
+  :type 'hook
+  :group 'autosync-magit)
+
 (cl-defstruct (autosync-magit--sync
                (:constructor autosync-magit--sync-create)
                (:copier nil))
@@ -245,7 +250,8 @@ conflicts with files modified by Emacs in the repository."
             (magit-run-git-async "fetch"))
         (autosync-magit--with-repo repo_dir
           (when (not (magit-rev-ancestor-p "@{upstream}" "HEAD"))
-            (magit-run-git "merge"))))))) ; synchronous
+            (magit-run-git "merge") ;; synchronous
+            (run-hooks 'autosync-magit-after-merge-hook)))))))
 
 ;;;###autoload
 (defun autosync-magit-push (repo_dir message)
