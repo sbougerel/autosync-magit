@@ -17,6 +17,7 @@ jobs:
           - 28.1
           - 28.2
           - 29.1
+          - 29.2
           - snapshot
     steps:
       - uses: actions/checkout@v4
