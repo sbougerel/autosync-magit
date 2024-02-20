@@ -46,11 +46,20 @@
   "Record the arguments of the last call to `record-and-return'.")
 
 (defun record-calls-and-return (value)
-  "Return VALUE always, and record call arguments in LIST-VAR."
+  "Return VALUE always, and record any call's arguments in LIST-VAR."
   (lambda (&rest args)
     (if (consp call-recorder)
         (setcdr (last call-recorder) (list args))
       (setq call-recorder (list args)))
+    value))
+
+(defun record-only-and-return (value expected)
+  "Return VALUE always, record only EXPECTED."
+  (lambda (&rest args)
+    (if (member args expected)
+        (if (consp call-recorder)
+            (setcdr (last call-recorder) (list args))
+          (setq call-recorder (list args))))
     value))
 
 (require 'autosync-magit)
@@ -98,7 +107,9 @@
             ((symbol-function 'magit-rev-ancestor-p) (always-nil))
             ((symbol-function 'set-process-sentinel)
              (lambda (process sentinel) process (funcall sentinel)))
-            ((symbol-function 'run-hooks) (record-calls-and-return t)))
+            ((symbol-function 'run-hooks) (record-only-and-return
+                                           t
+                                           '((autosync-magit-after-merge-hook)))))
     (autosync-magit-pull "/dir")
     (should
      (equal '(("fetch")
@@ -122,7 +133,9 @@
             ((symbol-function 'magit-rev-ancestor-p) (always-return t))
             ((symbol-function 'set-process-sentinel)
              (lambda (process sentinel) process (funcall sentinel)))
-            ((symbol-function 'run-hooks) (record-calls-and-return t)))
+            ((symbol-function 'run-hooks) (record-only-and-return
+                                           t
+                                           '((autosync-magit-after-merge-hook)))))
     (autosync-magit-pull "/dir")
     (should
      (equal '(("fetch"))
