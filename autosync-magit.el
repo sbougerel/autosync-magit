@@ -227,10 +227,14 @@ instead.")
 (defmacro autosync-magit--with-repo (repo_dir &rest body)
   "Run BODY in a temporary buffer where current directory is REPO_DIR.
 
-Since file-visiting buffer may be killed before this function runs,
-we don't rely on them."
+Avoid relying on file-visiting buffers that may be killed before body runs.
+Ensure directory local variables are loaded."
   (declare (indent 1) (debug t))
-  `(with-temp-buffer (cd ,repo_dir) ,@body))
+  `(with-temp-buffer
+     (let ((default-directory ,repo_dir)
+           (enable-dir-local-variables t))
+       (hack-dir-local-variables-non-file-buffer)
+       ,@body)))
 
 ;;;###autoload
 (defun autosync-magit-pull (repo_dir)
