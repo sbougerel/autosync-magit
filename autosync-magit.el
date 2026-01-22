@@ -1,11 +1,11 @@
 ;;; autosync-magit.el --- Automatically synchronize content with upstream via magit -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023 Sylvain Bougerel
+;; Copyright (C) 2026 Sylvain Bougerel
 
 ;; Author: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Maintainer: Sylvain Bougerel <sylvain.bougerel.devel@gmail.com>
 ;; Version: 0.5.0
-;; Package-Requires: ((emacs "27.1") (magit "2.9.0"))
+;; Package-Requires: ((emacs "28.1") (magit "4.3.8"))
 ;; Keywords: convenience tools magit git
 ;; URL: https://github.com/sbougerel/autosync-magit
 
@@ -34,8 +34,8 @@
 ;; exceptionally: when git is used solely to synchronize private content between
 ;; devices or personal backups.  With this use case, there is typically no need
 ;; to create branches, and all changes can be pushed to the remote as soon as
-;; they are committed.  The author created it to synchronize his personal notes
-;; between different devices.
+;; they are committed.  The author created it to synchronize their personal
+;; notes between different devices.
 ;;
 ;; Autosync-Magit should never be used for other use cases and especially not
 ;; for team settings.
