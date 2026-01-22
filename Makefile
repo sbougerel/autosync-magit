@@ -12,32 +12,34 @@ BYTEC = $(SRC)c
 #   dash
 #   with-editor
 #   magit-section
-REQS := magit
+DEPS := cl-lib magit
 
 PKGCACHE := $(abspath $(PWD)/package-cache)
 
-# INIT_PACKAGE_EL from package-lint (https://github.com/purcell/package-lint)
+# INIT_PACKAGES from package-lint (https://github.com/purcell/package-lint)
 # Copyrights: Steve Purcell (https://github.com/purcell)
-INIT_PACKAGE_EL := "(progn \
+INIT_PACKAGES="(progn \
   (require 'package) \
   (setq package-user-dir \"$(PKGCACHE)\") \
-  (setq package-archives \
-	'((\"gnu\" . \"https://elpa.gnu.org/packages/\") \
-	  (\"nongnu\" . \"https://elpa.nongnu.org/nongnu/\"))) \
+  (push '(\"nongnu\" . \"https://elpa.nongnu.org/nongnu/\") package-archives) \
+  (push '(\"gnu\" . \"https://elpa.gnu.org/packages/\") package-archives) \
   (package-initialize) \
-  (unless package-archive-contents \
-     (package-refresh-contents)) \
-  (dolist (pkg '($(REQS))) \
+  (dolist (pkg '(${DEPS})) \
     (unless (package-installed-p pkg) \
-      (package-install pkg))))"
-
-BATCH = $(EMACS) -Q --batch --eval $(INIT_PACKAGE_EL)
+      (unless (assoc pkg package-archive-contents) \
+        (package-refresh-contents)) \
+      (package-install pkg))) \
+  (unless package-archive-contents (package-refresh-contents)) \
+  )"
+ 
+BATCH = $(EMACS) -Q --batch --eval $(INIT_PACKAGES)
 
 all: compile
 
 compile: $(BYTEC)
 
 test: $(BYTEC)
+	@echo "Testing $<"
 	$(BATCH) \
 		-L . \
 		-l autosync-magit-tests.el \

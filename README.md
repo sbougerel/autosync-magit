@@ -12,8 +12,8 @@ repository branch with its upstream, using Magit.  It is intended to be used
 exceptionally: when git is used solely to synchronize private content between
 devices or personal backups.  With this use case, there is typically no need
 to create branches, and all changes can be pushed to the remote as soon as
-they are committed.  The author created it to synchronize his personal notes
-between different devices.
+they are committed.  The author created it to synchronize their personal
+notes between different devices.
 
 Autosync-Magit should never be used for other use cases and especially not
 for team settings.
