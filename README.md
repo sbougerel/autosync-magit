@@ -7,6 +7,13 @@
 [![License GPLv3](https://img.shields.io/badge/license-GPL_v3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.html)
 [![CI Result](https://github.com/sbougerel/autosync-magit/actions/workflows/makefile.yml/badge.svg)](https://github.com/sbougerel/autosync-magit/actions)
 
+> [!IMPORTANT]
+> Autosync-Magit is deprecated and I've moved development over to
+> [autosync-git](https://github.com/sbougerel/autosync-git), which I hope to
+> eventually submit to MELPA, once I am done thoroughly testing it.  You can
+> continue to use Autosync-Magit if it works for you, however there won't be
+> any update or fixes to this package from me.
+
 Autosync-Magit provides a minor mode to automatically synchronize a local git
 repository branch with its upstream, using Magit.  It is intended to be used
 exceptionally: when git is used solely to synchronize private content between
